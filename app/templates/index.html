@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Cleaner B2B — Limpia tus listas de prospectos en segundos</title>
+<meta name="description" content="Pega o sube tu CSV de prospectos y normaliza nombres de empresa, contactos, emails, teléfonos, cargos y ubicaciones. Reglas deterministas, sin IA inventada, sin almacenar nada.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] } } } };
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: Inter, system-ui, sans-serif; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
+  .fade-in { animation: fadeUp .45s ease both; }
+  @keyframes blob { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-20px) scale(1.08); } }
+  .blob { animation: blob 14s ease-in-out infinite; }
+  .table-scroll::-webkit-scrollbar { height:8px; width:8px; }
+  .table-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:8px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+
+<!-- ============ HEADER ============ -->
+<header class="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur">
+  <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+    <a href="#" class="flex items-center gap-2.5">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 shadow-sm shadow-emerald-600/30">
+        <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+      </span>
+      <span class="text-lg font-bold tracking-tight">Data&nbsp;Cleaner&nbsp;B2B</span>
+      <span class="hidden rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 sm:inline">POC</span>
+    </a>
+    <nav class="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+      <a href="#demo" class="hover:text-emerald-600">Probar</a>
+      <a href="#como-funciona" class="hover:text-emerald-600">Cómo funciona</a>
+      <a href="#reglas" class="hover:text-emerald-600">Reglas</a>
+      <a href="#precios" class="hover:text-emerald-600">Precios</a>
+    </nav>
+    <a href="#demo" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Probar gratis</a>
+  </div>
+</header>
+
+<!-- ============ HERO + DEMO ============ -->
+<section class="relative overflow-hidden bg-slate-900 text-white">
+  <div class="blob pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-emerald-600/25 blur-3xl"></div>
+  <div class="blob pointer-events-none absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-sky-500/15 blur-3xl" style="animation-delay:-7s"></div>
+
+  <div class="mx-auto grid max-w-6xl items-start gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:py-20">
+    <!-- Copy -->
+    <div class="fade-in">
+      <span class="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+        Prueba gratuita · Sin registro · Sin tarjeta
+      </span>
+      <h1 class="mt-5 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
+        De <span class="bg-gradient-to-r from-emerald-400 to-sky-400 bg-clip-text text-transparent">ACME Services Europe, S.L.U.</span>
+        a <span class="text-emerald-300">ACME Services</span>.
+      </h1>
+      <p class="mt-4 max-w-xl text-lg text-slate-300">
+        Sube tu CSV de prospectos y normaliza nombres de empresa, contactos, emails, teléfonos, cargos y ubicaciones.
+        Sin copiar y pegar celda a celda durante tres horas.
+      </p>
+      <ul class="mt-6 space-y-2.5 text-sm text-slate-300">
+        <li class="flex items-start gap-2.5"><svg class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Detecta el tipo de cada columna automáticamente (y lo puedes corregir)</li>
+        <li class="flex items-start gap-2.5"><svg class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Elimina formas jurídicas (<code class="rounded bg-white/10 px-1">S.L.U.</code>, <code class="rounded bg-white/10 px-1">Inc.</code>, <code class="rounded bg-white/10 px-1">GmbH</code>) y sufijos geográficos</li>
+        <li class="flex items-start gap-2.5"><svg class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Arregla <code class="rounded bg-white/10 px-1">GARCÍA, JOSÉ</code>, <code class="rounded bg-white/10 px-1">JUAN@GMAIL.COM</code> y <code class="rounded bg-white/10 px-1">612345678</code></li>
+        <li class="flex items-start gap-2.5"><svg class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Descarga CSV, Excel o JSON y sigue con tu campaña</li>
+      </ul>
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a href="#demo" class="rounded-lg bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400">Limpiar mi lista</a>
+        <a href="#reglas" class="rounded-lg border border-slate-600 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800">Ver las reglas</a>
+      </div>
+      <p class="mt-6 text-xs text-slate-400" id="mode-hint">El fichero NO sale de tu ordenador: todo el proceso ocurre en tu navegador.</p>
+    </div>
+
+    <!-- Demo card -->
+    <div id="demo" class="fade-in scroll-mt-20 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl shadow-black/40">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-base font-bold text-slate-900">Prueba con tus datos</h2>
+        <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">Gratis</span>
+      </div>
+
+      <!-- Modo -->
+      <div class="mt-4 inline-flex rounded-xl bg-slate-100 p-1">
+        <button id="mode-browser" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition">En mi navegador</button>
+        <button id="mode-server" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition">En el servidor</button>
+      </div>
+
+      <div id="drop" class="mt-4 cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40">
+        <input id="file" type="file" accept=".csv,.tsv,.txt,.xlsx" class="hidden">
+        <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        </span>
+        <p class="mt-3 text-sm font-semibold text-slate-800">Arrastra aquí tu CSV</p>
+        <p class="mt-1 text-xs text-slate-500">o <span class="font-semibold text-emerald-600 underline decoration-emerald-300 underline-offset-2">selecciónalo</span> · .csv / .tsv / .xlsx · máx. 10&nbsp;MB</p>
+      </div>
+
+      <div class="mt-3 flex items-center justify-between text-[11px] text-slate-500">
+        <span>¿No tienes un fichero a mano?</span>
+        <button id="load-demo" type="button" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-800">Cargar ejemplo</button>
+      </div>
+
+      <!-- Opciones -->
+      <div id="options-panel" class="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Reglas a aplicar</p>
+        <div class="mt-2.5 grid gap-2 sm:grid-cols-2">
+          <label class="flex items-center gap-2 text-xs text-slate-700"><input id="optLegal" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"> Quitar formas jurídicas</label>
+          <label class="flex items-center gap-2 text-xs text-slate-700"><input id="optGeo" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"> Quitar sufijos geográficos</label>
+          <label class="flex items-center gap-2 text-xs text-slate-700"><input id="optArticles" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"> Quitar "The" inicial</label>
+          <label class="flex items-center gap-2 text-xs text-slate-700"><input id="optTitleCase" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"> Normalizar mayúsculas</label>
+          <label class="flex items-center gap-2 text-xs text-slate-700"><input id="optEmailTypos" type="checkbox" checked class="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"> Corregir typos de email</label>
+          <label class="flex items-center gap-2 text-xs text-slate-700"><input id="optPlusTags" type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"> Quitar etiquetas + de Gmail</label>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+          <label class="flex items-center gap-1.5">Teléfono:
+            <select id="optPhoneFormat" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] focus:border-emerald-500 focus:ring-emerald-500">
+              <option value="auto">Automático</option>
+              <option value="national">Nacional (612 345 678)</option>
+              <option value="e164">E.164 (+34612345678)</option>
+              <option value="international">Internacional (+34 612 345 678)</option>
+              <option value="raw">Sin formato</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-1.5">País por defecto:
+            <input id="optCountryCode" type="text" value="34" maxlength="4" class="w-14 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] focus:border-emerald-500 focus:ring-emerald-500">
+          </label>
+          <label class="flex items-center gap-1.5">CSV sep.:
+            <select id="csvDelimiter" class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]">
+              <option value=";">;</option>
+              <option value=",">,</option>
+              <option value="\t">Tab</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <p id="status" class="mt-3 hidden rounded-lg px-3 py-2 text-xs font-medium"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COLUMNAS DETECTADAS ============ -->
+<section id="columns-wrap" class="mx-auto hidden max-w-6xl px-4 py-10 sm:px-6">
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="text-base font-bold text-slate-900">Columnas detectadas</h2>
+        <p class="mt-1 text-xs text-slate-500">Ajústalo si alguna no se ha interpretado bien. Los cambios se aplican al instante.</p>
+      </div>
+    </div>
+    <div class="table-scroll mt-4 overflow-x-auto">
+      <table class="min-w-full text-left text-sm">
+        <thead class="border-b border-slate-200">
+          <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+            <th class="px-3 py-2 font-semibold">Columna</th>
+            <th class="px-3 py-2 font-semibold">Tipo</th>
+            <th class="px-3 py-2 font-semibold">Confianza</th>
+            <th class="px-3 py-2 font-semibold">Señal</th>
+          </tr>
+        </thead>
+        <tbody id="columns-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULTADOS ============ -->
+<section id="results" class="mx-auto hidden max-w-6xl px-4 py-10 sm:px-6">
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900">Resultado</h2>
+        <p class="mt-1 text-xs text-slate-500">Esto es lo que devolverá tu fichero, listo para importar en tu CRM.</p>
+      </div>
+      <div id="downloads" class="hidden flex-wrap gap-2">
+        <a id="dl-csv" class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700" download>CSV</a>
+        <a id="dl-xlsx" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700" download>Excel</a>
+        <a id="dl-json" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50" download>JSON</a>
+      </div>
+      <div id="downloads-local" class="flex flex-wrap gap-2">
+        <button id="dl-csv-local" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4"/></svg>CSV</button>
+        <button id="dl-xlsx-local" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4"/></svg>Excel</button>
+        <button id="dl-json-local" type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4"/></svg>JSON</button>
+      </div>
+    </div>
+
+    <div class="px-6 py-6">
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Filas</p>
+          <p id="kpi-rows" class="mt-1 text-2xl font-bold text-slate-900">0</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Celdas cambiadas</p>
+          <p id="kpi-changed" class="mt-1 text-2xl font-bold text-slate-900">0</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">% limpiado</p>
+          <p id="kpi-pct" class="mt-1 text-2xl font-bold text-emerald-600">0%</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Columnas</p>
+          <p id="kpi-cols" class="mt-1 text-2xl font-bold text-slate-900">0</p>
+        </div>
+      </div>
+
+      <h3 class="mt-8 text-sm font-bold text-slate-900">Previsualización</h3>
+      <div class="table-scroll mt-3 overflow-x-auto rounded-xl border border-slate-200">
+        <table class="min-w-full text-left text-xs">
+          <thead id="preview-head" class="bg-slate-50"></thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+      </div>
+
+      <h3 class="mt-8 text-sm font-bold text-slate-900">Cambios aplicados <span id="changes-count" class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">0</span></h3>
+      <div class="table-scroll mt-3 max-h-96 overflow-auto rounded-xl border border-slate-200">
+        <table class="min-w-full text-left text-xs">
+          <thead class="sticky top-0 bg-slate-50">
+            <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+              <th class="px-3 py-2 font-semibold">Fila</th>
+              <th class="px-3 py-2 font-semibold">Columna</th>
+              <th class="px-3 py-2 font-semibold">Regla</th>
+              <th class="px-3 py-2 font-semibold">Antes</th>
+              <th class="px-3 py-2 font-semibold">Después</th>
+            </tr>
+          </thead>
+          <tbody id="changes-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CÓMO FUNCIONA ============ -->
+<section id="como-funciona" class="border-y border-slate-200 bg-white py-16">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    <h2 class="text-center text-3xl font-extrabold tracking-tight">Tres pasos, sin Excel</h2>
+    <p class="mx-auto mt-3 max-w-2xl text-center text-slate-600">Pensado para el día a día de un SDR: subes la lista, revisas el resultado en 5 segundos y descargas.</p>
+    <div class="mt-12 grid gap-6 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 p-6">
+        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 font-bold text-emerald-700">1</span>
+        <h3 class="mt-4 font-bold">Sube tu lista</h3>
+        <p class="mt-2 text-sm text-slate-600">CSV, TSV o Excel. El motor detecta sola qué columna es empresa, contacto, email, teléfono, cargo o ubicación.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-6">
+        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 font-bold text-emerald-700">2</span>
+        <h3 class="mt-4 font-bold">Revisa el diff</h3>
+        <p class="mt-2 text-sm text-slate-600">Cada cambio aparece con su regla aplicada. Si una regla no te conviene, la desactivas y recalculamos al instante.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-6">
+        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 font-bold text-emerald-700">3</span>
+        <h3 class="mt-4 font-bold">Descarga y dispara</h3>
+        <p class="mt-2 text-sm text-slate-600">CSV (Excel ES o para importar en CRM), Excel con hoja de informe o JSON. Y aiveness: <code>Hola [Empresa]</code> ya suena natural.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REGLAS ============ -->
+<section id="reglas" class="py-16">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    <h2 class="text-center text-3xl font-extrabold tracking-tight">Qué limpia exactamente</h2>
+    <p class="mx-auto mt-3 max-w-2xl text-center text-slate-600">Reglas deterministas y explicables. Nada de "la IA te inventa": cada cambio se puede justificar.</p>
+
+    <div class="mt-12 grid gap-6 lg:grid-cols-2">
+      <div class="rounded-2xl border border-slate-200 bg-white p-6">
+        <h3 class="flex items-center gap-2 font-bold"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Empresa</h3>
+        <ul class="mt-4 space-y-2 text-sm text-slate-600">
+          <li>Formas jurídicas: S.L., S.L.U., S.A., S.A.U., S.L.S., Inc., Ltd., LLC, GmbH, SARL, S.p.A., B.V., Pty Ltd, S. de R.L. de C.V…</li>
+          <li>Sufijos geográficos: Europe, Spain, España, Global, International, EMEA, LATAM…</li>
+          <li>Mayúsculas agresivas → <em>Acme Services</em> (respetando acrónimos como IBM y CEO)</li>
+          <li>Artículo inicial: <em>The Walt Disney Company</em> → <em>Walt Disney</em></li>
+          <li>URLs sueltas: <em>www.acme.com</em> → <em>acme</em></li>
+        </ul>
+        <div class="mt-4 rounded-lg bg-slate-50 p-3 font-mono text-[11px] text-slate-600">
+          ACME Services Europe, S.L.U. → <span class="text-emerald-700">ACME Services</span><br>
+          GOOGLE SPAIN SOCIEDAD LIMITADA → <span class="text-emerald-700">Google</span>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-6">
+        <h3 class="flex items-center gap-2 font-bold"><span class="h-2 w-2 rounded-full bg-sky-500"></span>Persona, email, teléfono</h3>
+        <ul class="mt-4 space-y-2 text-sm text-slate-600">
+          <li>Orden <em>Apellido, Nombre</em> → <em>Nombre Apellido</em> y títulos fuera (Mr., Dra., Sr.)</li>
+          <li>Emails a minúsculas, typos de dominio corregidos (gmial.com → gmail.com)</li>
+          <li>Teléfonos a formato consistente: nacional, E.164 o internacional</li>
+        </ul>
+        <div class="mt-4 rounded-lg bg-slate-50 p-3 font-mono text-[11px] text-slate-600">
+          GARCÍA, JOSÉ ANTONIO → <span class="text-emerald-700">José Antonio García</span><br>
+          JUAN.PEREZ@ACME.COM → <span class="text-emerald-700">juan.perez@acme.com</span><br>
+          612345678 → <span class="text-emerald-700">612 345 678</span>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-6">
+        <h3 class="flex items-center gap-2 font-bold"><span class="h-2 w-2 rounded-full bg-amber-500"></span>Cargo y ubicación</h3>
+        <ul class="mt-4 space-y-2 text-sm text-slate-600">
+          <li>Cargos en Title Case con partículas en minúscula: <em>GERENTE DE VENTAS</em> → <em>Gerente de Ventas</em></li>
+          <li>Acrónimos intactos: <em>VP of Sales</em>, <em>IT Manager</em></li>
+          <li>Ubicaciones: <em>España (Madrid)</em> → <em>Madrid, España</em>; se quita el código postal</li>
+        </ul>
+      </div>
+
+      <div class="rounded-2xl border border-slate-200 bg-white p-6">
+        <h3 class="flex items-center gap-2 font-bold"><span class="h-2 w-2 rounded-full bg-violet-500"></span>Privacidad y control</h3>
+        <ul class="mt-4 space-y-2 text-sm text-slate-600">
+          <li><strong>Modo navegador:</strong> el fichero no sale de tu equipo. Cero requests al servidor.</li>
+          <li><strong>Modo servidor:</strong> se procesa en memoria y se descarta; los resultados caducan en 15 minutos.</li>
+          <li>Nunca guardamos tu lista. Ni para "mejorar el producto".</li>
+          <li>Los ficheros exportados se protegen frente a fórmulas maliciosas de Excel.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRECIOS ============ -->
+<section id="precios" class="border-y border-slate-200 bg-white py-16">
+  <div class="mx-auto max-w-5xl px-4 sm:px-6">
+    <div class="text-center">
+      <h2 class="text-3xl font-extrabold tracking-tight">Precios</h2>
+      <p class="mx-auto mt-3 max-w-2xl text-slate-600">Un SDR cobra 30–50 €/hora. Ahorrarle dos horas a la semana justifica esta suscripción sin discusión.</p>
+    </div>
+    <div class="mt-12 grid gap-6 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 p-6">
+        <p class="text-sm font-semibold text-slate-500">POC</p>
+        <p class="mt-3 text-4xl font-extrabold">0 €</p>
+        <p class="mt-1 text-xs text-slate-500">Para siempre, con límites generosos generosos</p>
+        <ul class="mt-5 space-y-2 text-sm text-slate-600">
+          <li>✓ Ficheros hasta 10 MB</li>
+          <li>✓ Todas las reglas</li>
+          <li>✓ Modo navegador ilimitado</li>
+          <li>✓ CSV / Excel / JSON</li>
+        </ul>
+      </div>
+      <div class="rounded-2xl border-2 border-emerald-500 p-6 shadow-lg shadow-emerald-500/10">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-emerald-700">Pro</p>
+          <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Popular</span>
+        </div>
+        <p class="mt-3 text-4xl font-extrabold">49 €/mes</p>
+        <p class="mt-1 text-xs text-slate-500">Para equipos de 1–5 personas</p>
+        <ul class="mt-5 space-y-2 text-sm text-slate-600">
+          <li>✓ Todo lo del POC, sin límites</li>
+          <li>✓ Reglas guardadas y compartidas</li>
+          <li>✓ Historical de limpiezas</li>
+          <li>✓ Soporte prioritario</li>
+        </ul>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-6">
+        <p class="text-sm font-semibold text-slate-500">Business</p>
+        <p class="mt-3 text-4xl font-extrabold">99 €/mes</p>
+        <p class="mt-1 text-xs text-slate-500">Para agencias y equipos de ventas</p>
+        <ul class="mt-5 space-y-2 text-sm text-slate-600">
+          <li>✓ Todo lo de Pro</li>
+          <li>✓ Multi-usuario y auditoría</li>
+          <li>✓ API y webhooks</li>
+          <li>✓ SLA y onboarding</li>
+        </ul>
+      </div>
+    </div>
+    <p class="mt-8 text-center text-xs text-slate-500">Este POC es una demostración funcional: todas las pruebas son gratuitas y no se cobra nada.</p>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="py-16">
+  <div class="mx-auto max-w-3xl px-4 sm:px-6">
+    <h2 class="text-center text-3xl font-extrabold tracking-tight">Preguntas frecuentes</h2>
+    <div class="mt-10 space-y-6">
+      <div>
+        <h3 class="font-bold">¿Mis datos se guardan en algún sitio?</h3>
+        <p class="mt-1.5 text-sm text-slate-600">No. En modo navegador el fichero se procesa con JavaScript en tu equipo y no se envía a ningún servidor. En modo servidor se procesa en memoria y se descarta al terminar la petición; los resultados guardados para poder descargarlos caducan a los 15 minutos.</p>
+      </div>
+      <div>
+        <h3 class="font-bold">¿Por qué no usa IA?</h3>
+        <p class="mt-1.5 text-sm text-slate-600">Porque un correo de,  "Hola [Empresa]" no puede permitirse inventarse nada. Las reglas son deterministas, auditables y explicables. La arquitectura deja preparado un punto de extensión para un modo IA cuando lo necesitemos.</p>
+      </div>
+      <div>
+        <h3 class="font-bold">¿Y si mi columna no se detecta bien?</h3>
+        <p class="mt-1.5 text-sm text-slate-600">Puedes cambiar el tipo de cada columna con un desplegable y se recalcula al instante. Si no te convence ninguna regla, puedes desactivarla.</p>
+      </div>
+      <div>
+        <h3 class="font-bold">¿Funciona con listas grandes?</h3>
+        <p class="mt-1.5 text-sm text-slate-600">Hasta 50.000 filas y 10 MB por fichero en modo servidor; en modo navegador el límite es la memoria de tu equipo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="border-t border-slate-200 bg-white py-8">
+  <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-xs text-slate-500 sm:flex-row sm:px-6">
+    <p>Data Cleaner B2B · POC de producto · Datos de ejemplo ficticios</p>
+    <p>Hecho con FastAPI + Tailwind · <a href="/docs" class="underline decoration-slate-300 underline-offset-2 hover:text-slate-700">API</a> · <a href="/health" class="underline decoration-slate-300 underline-offset-2 hover:text-slate-700">Estado</a></p>
+  </div>
+</footer>
+
+<script src="/static/rules.js"></script>
+<script src="/static/engine.js"></script>
+<script src="/static/csv.js"></script>
+<script src="/static/xlsx.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
