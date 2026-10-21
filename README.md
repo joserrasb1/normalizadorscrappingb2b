@@ -113,8 +113,9 @@ motor de JavaScript.
 ## 6. Arquitectura
 
 ```
-normalizadorscrappingb2b/
+normalizadorscrappingb2b/          ← raíz de este repositorio
 ├── main.py                     API FastAPI (subida, limpieza, descargas)
+├── render.yaml                 despliegue gratuito en Render
 ├── app/
 │   ├── rules.py                ⭐ fuente única de verdad de las reglas
 │   ├── text_utils.py           utilidades de texto (Title Case, mayúsculas…)
@@ -189,15 +190,17 @@ Los puentes entre Python y JavaScript viven en `tests/js_*.js`:
 
 ## 9. Despliegue
 
-El proyecto es **autocontenido**: la carpeta `normalizadorscrappingb2b/` puede
-moverse tal cual a su propio repositorio.
+El proyecto es **autocontenido**: este repositorio no depende de nada externo
+(todo el motor, el parser y el exportador son código propio). Se despliega
+como cualquier app FastAPI.
 
-Render (gratis, como en el proyecto hermano):
+Render (gratis) — el `render.yaml` de la raíz ya está listo, así que basta con
+"New > Blueprint" y apuntar a este repositorio:
 
 ```yaml
 services:
   - type: web
-    name: data-cleaner-b2b
+    name: normalizadorscrappingb2b
     env: python
     plan: free
     region: frankfurt
