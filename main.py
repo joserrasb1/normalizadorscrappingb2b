@@ -26,6 +26,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -87,6 +88,24 @@ app = FastAPI(
 )
 
 app.add_middleware(BodySizeLimitMiddleware)
+
+# --- CORS ---------------------------------------------------------------
+# La landing puede servirse desde Cloudflare Pages (otro dominio) y llamar a
+# esta API. La API es pública, sin cookies ni credenciales, así que por
+# defecto se permite cualquier origen; en producción conviene acotarlo:
+#   ALLOWED_ORIGINS="https://tu-landing.pages.dev,https://tu-dominio.com"
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()
+] or ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
+)
 
 # Archivos estáticos (rules.js, engine.js)
 static_dir = os.path.join(BASE_DIR, "app", "static")

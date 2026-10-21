@@ -11,7 +11,7 @@ JSON.
   auditables). Hay un punto de extensión documentado para IA en el futuro.
 - 🔒 **Modo navegador**: el fichero **no sale de tu ordenador**; se procesa con
   JavaScript en el propio navegador.
-- 🧪 **159 tests** que garantizan que el motor del servidor (Python) y el del
+- 🧪 **174 tests** que garantizan que el motor del servidor (Python) y el del
   navegador (JavaScript) devuelven **exactamente lo mismo**.
 
 ---
@@ -49,6 +49,29 @@ El modo navegador **no carga ninguna librería de datos de terceros** (ni CDN ni
 npm): el motor, el parser CSV y el exportador XLSX son código propio del
 proyecto, así que ningún script externo toca el fichero del usuario. El único
 recurso de terceros es la hoja de estilos Tailwind (no ve los datos).
+
+### Despliegue: dos piezas, dos planes gratuitos
+
+La landing + el modo navegador **no necesitan servidor**: son HTML y JS. La
+API Python (XLSX y uso por API) sí. Por eso el despliegue recommended es:
+
+```
+Cloudflare Pages (gratis, sin límite de tráfico, nunca duerme)
+        │  fetch + CORS
+        ▼
+Render Free (gratis, API Python; duerme a los 15 min)
+```
+
+El paso a paso está en **[DEPLOY.md](DEPLOY.md)**. En resumen:
+
+```bash
+# Build del sitio estático para Cloudflare Pages
+python3 -m tools.build_static --api-base https://TU-API.onrender.com --out dist
+```
+
+La URL de la API se inyecta en la landing (`<meta name="api-base">`) y la API
+acepta el origen de la landing vía CORS (configurable con `ALLOWED_ORIGINS`).
+
 
 ## 3. API
 
@@ -116,6 +139,7 @@ motor de JavaScript.
 normalizadorscrappingb2b/          ← raíz de este repositorio
 ├── main.py                     API FastAPI (subida, limpieza, descargas)
 ├── render.yaml                 despliegue gratuito en Render
+├── DEPLOY.md                   guía paso a paso (Cloudflare Pages + Render)
 ├── app/
 │   ├── rules.py                ⭐ fuente única de verdad de las reglas
 │   ├── text_utils.py           utilidades de texto (Title Case, mayúsculas…)
@@ -133,8 +157,10 @@ normalizadorscrappingb2b/          ← raíz de este repositorio
 │   │   ├── app.js               interfaz (modo navegador / modo servidor)
 │   │   └── demo.csv             dataset de ejemplo
 │   └── templates/index.html    landing
-├── tools/gen_rules_js.py       genera app/static/rules.js desde app/rules.py
-└── tests/                      159 tests (pytest)
+├── tools/
+│   ├── gen_rules_js.py         genera app/static/rules.js desde app/rules.py
+│   └── build_static.py         genera el sitio estático para Cloudflare Pages
+└── tests/                      174 tests (pytest)
 ```
 
 ### Fuente única de verdad
@@ -167,6 +193,7 @@ python3 -m pytest tests/ -q
 | `test_js_parity.py` | El motor JS y el motor Python dan el mismo resultado (usa `node`) |
 | `test_browser_mode.py` | El flujo completo del navegador (parseo → detección → limpieza → export) es idéntico al del servidor |
 | `test_xlsx_writer.py` | El XLSX que genera el navegador es válido (se abre con openpyxl) |
+| `test_static_build.py` | La build del sitio estático y la resolución de la URL de la API |
 
 `test_js_parity.py`, `test_browser_mode.py` y `test_xlsx_writer.py` se saltan
 automáticamente si `node` no está instalado.

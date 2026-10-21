@@ -12,6 +12,9 @@ env/
 htmlcov/
 .cache
 
+# Build del sitio estático (Cloudflare Pages)
+dist/
+
 # Sistema
 .DS_Store
 Thumbs.db

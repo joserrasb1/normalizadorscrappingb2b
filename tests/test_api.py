@@ -151,3 +151,45 @@ def test_static_servido(client):
         r = client.get(path)
         assert r.status_code == 200, path
         assert len(r.text) > 100
+
+
+def test_cors_permite_otro_origen(client):
+    """La landing en Cloudflare Pages (otro dominio) debe poder llamar a la API."""
+    r = client.get("/health", headers={"Origin": "https://landing.pages.dev"})
+    assert r.status_code == 200
+    assert r.headers.get("access-control-allow-origin") in ("*", "https://landing.pages.dev")
+
+
+def test_cors_preflight_de_subida(client):
+    r = client.options(
+        "/api/clean",
+        headers={
+            "Origin": "https://landing.pages.dev",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert r.status_code in (200, 204)
+    assert r.headers.get("access-control-allow-origin") in ("*", "https://landing.pages.dev")
+    assert "POST" in r.headers.get("access-control-allow-methods", "")
+
+
+def test_cors_con_origenes_restringidos(monkeypatch):
+    """Con ALLOWED_ORIGINS se puede limitar el acceso a la API."""
+    import importlib
+
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://mi-landing.pages.dev")
+    import main as main_module
+
+    importlib.reload(main_module)
+    try:
+        from fastapi.testclient import TestClient
+
+        with TestClient(main_module.app) as c:
+            r = c.get("/health", headers={"Origin": "https://otro.example"})
+            assert r.headers.get("access-control-allow-origin") != "https://otro.example"
+            r2 = c.get("/health", headers={"Origin": "https://mi-landing.pages.dev"})
+            assert r2.headers.get("access-control-allow-origin") == "https://mi-landing.pages.dev"
+    finally:
+        monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
+        importlib.reload(main_module)

@@ -137,7 +137,26 @@ def clean_control_chars(text: str) -> str:
     return _CONTROL_RE.sub("", text)
 
 
-def secure_http_headers() -> List[Tuple[str, str]]:
+def content_security_policy(extra_connect: str = "") -> str:
+    """
+    Política de seguridad de contenido (CSP).
+
+    `extra_connect` permite añadir orígenes con los que la página puede
+    hacer fetch (por ejemplo, la API alojada en otro dominio cuando la
+    landing se sirve desde Cloudflare Pages).
+    """
+    connect = "'self'"
+    if extra_connect:
+        connect += " " + " ".join(extra_connect.split())
+    return (
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "
+        f"connect-src {connect}; form-action 'self'; base-uri 'self'; frame-ancestors 'none'"
+    )
+
+
+def secure_http_headers(extra_connect: str = "") -> List[Tuple[str, str]]:
     """Cabeceras HTTP seguras recomendadas para las respuestas."""
     return [
         ("X-Content-Type-Options", "nosniff"),
@@ -146,10 +165,7 @@ def secure_http_headers() -> List[Tuple[str, str]]:
         ("Permissions-Policy", "geolocation=(), microphone=(), camera=()"),
         (
             "Content-Security-Policy",
-            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "
-            "connect-src 'self'; form-action 'self'; base-uri 'self'; frame-ancestors 'none'",
+            content_security_policy(extra_connect),
         ),
         ("Strict-Transport-Security", "max-age=31536000; includeSubDomains"),
         ("Cross-Origin-Resource-Policy", "same-origin"),

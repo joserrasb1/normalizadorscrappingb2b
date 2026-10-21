@@ -5,6 +5,16 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+  // URL base de la API. Vacío = mismo origen (la landing y la API en el mismo
+  // servidor). Se rellena con <meta name="api-base" content="..."> cuando la
+  // landing se sirve desde Cloudflare Pages y la API vive en otro dominio.
+  const API_BASE = (function(){
+    const meta = document.querySelector('meta[name="api-base"]');
+    let base = meta ? (meta.getAttribute('content') || '') : '';
+    base = base.trim();
+    return base.replace(/\/+$/, '');
+  })();
+
   const state = {
     mode: 'browser',        // 'browser' | 'server'
     headers: [],
@@ -102,7 +112,8 @@
   }
 
   function uploadToServer(file){
-    setStatus('Subiendo y procesando en el servidor…', 'info');
+    setStatus('Subiendo y procesando en el servidor… (si el servicio gratuito está ' +
+              'dormido, la primera petición puede tardar hasta 1 minuto)', 'info');
     const fd = new FormData();
     fd.append('file', file);
     const opts = readOptions();
@@ -118,7 +129,7 @@
     state.columns.forEach(c => { ctypes[c.index] = c.applied_type; });
     if (Object.keys(ctypes).length) fd.append('column_types', JSON.stringify(ctypes));
 
-    fetch('/api/clean', {method: 'POST', body: fd})
+    fetch(API_BASE + '/api/clean', {method: 'POST', body: fd})
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error del servidor');
@@ -131,7 +142,16 @@
         renderResults(data);
         setStatus('Listo: ' + data.total_rows + ' fila(s) procesadas.', 'ok');
       })
-      .catch((err) => setStatus(err.message, 'error'));
+      .catch((err) => setStatus(serverErrorMessage(err), 'error'));
+  }
+
+  function serverErrorMessage(err){
+    if (err instanceof TypeError){
+      return 'No se pudo contactar con el servidor. Si la página se sirve desde ' +
+             'Cloudflare, revisa que la URL de la API (meta "api-base") sea correcta. ' +
+             'Mientras tanto, usa el modo "En mi navegador", que funciona sin servidor.';
+    }
+    return err.message;
   }
 
   // ---------- Motor local ----------
@@ -401,4 +421,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', init);
+
+  // Expuesto para depuración en la consola del navegador y para los tests.
+  window.DATA_CLEANER_CONFIG = { apiBase: API_BASE };
 })();
