@@ -108,22 +108,60 @@ app.include_router(auth_router)
 app.include_router(billing_router)
 
 # --- CORS ---------------------------------------------------------------
-# La landing puede servirse desde Cloudflare Pages (otro dominio) y llamar a
-# esta API. La API es pública, sin cookies ni credenciales, así que por
-# defecto se permite cualquier origen; en producción conviene acotarlo:
+# La landing se sirve desde Cloudflare Pages (otro dominio) y llama a esta
+# API. Por defecto se permite cualquier origen y SIN credenciales (la API es
+# pública). En producción, si la landing usa la sesión con cookies, hay que
+# acotar los orígenes:
 #   ALLOWED_ORIGINS="https://tu-landing.pages.dev,https://tu-dominio.com"
+# Con orígenes concretos se activa allow_credentials (imprescindible para
+# que viaje la cookie de sesión) y la cookie debe ir con SameSite=None.
 ALLOWED_ORIGINS = [
-    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()
+    o.strip()
+    for o in os.environ.get("ALLOWED_ORIGINS", settings.ALLOWED_ORIGINS).split(",")
+    if o.strip()
 ] or ["*"]
+ALLOW_ALL_ORIGINS = "*" in ALLOWED_ORIGINS
+ALLOWED_ORIGINS_SET = {o for o in ALLOWED_ORIGINS if o != "*"}
+
+
+class OriginGuardMiddleware(BaseHTTPMiddleware):
+    """Bloquea peticiones con estado desde orígenes no permitidos.
+
+    Complementa al CORS: con SameSite=None la cookie de sesión viaja en
+    peticiones cross-site, así que hay que comprobar el Origin en POST.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not ALLOW_ALL_ORIGINS:
+            origin = request.headers.get("origin")
+            if origin and not _origin_allowed(request, origin):
+                return JSONResponse(
+                    status_code=403, content={"detail": "Origen no permitido"}
+                )
+        return await call_next(request)
+
+
+def _origin_allowed(request: Request, origin: str) -> bool:
+    if origin in ALLOWED_ORIGINS_SET:
+        return True
+    # Peticiones same-origin (el navegador envía Origin == host de la API).
+    try:
+        own = str(request.base_url).rstrip("/")
+    except Exception:
+        return False
+    return origin.rstrip("/") == own
+
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_credentials=not ALLOW_ALL_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
+
+app.add_middleware(OriginGuardMiddleware)
 
 # Archivos estáticos (rules.js, engine.js)
 static_dir = os.path.join(BASE_DIR, "app", "static")
@@ -389,4 +427,3 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-# debug

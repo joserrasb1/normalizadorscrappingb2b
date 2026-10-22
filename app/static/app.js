@@ -471,7 +471,14 @@
     renderUsage();
     $$('[data-billing-plan]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        window.location.href = billingHref(btn.getAttribute('data-billing-plan'));
+        const plan = btn.getAttribute('data-billing-plan');
+        const account = window.DCB && window.DCB.account;
+        // Si hay módulo de cuenta (Stripe) delegamos; si no, email a ventas.
+        if (account && account.startCheckout){
+          account.startCheckout(plan);
+          return;
+        }
+        window.location.href = billingHref(plan);
       });
     });
     const closeBtn = $('#paywall-close');
@@ -558,6 +565,7 @@
   // Expuesto para depuración en la consola del navegador y para los tests.
   window.DATA_CLEANER_CONFIG = {
     apiBase: API_BASE,
+    billingEmail: BILLING_EMAIL,
     freeLimit: FREE_LIMIT,
     usage: {
       remaining: remainingUses,

@@ -43,7 +43,18 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui',
       <a href="#reglas" class="hover:text-emerald-600">Reglas</a>
       <a href="#precios" class="hover:text-emerald-600">Precios</a>
     </nav>
-    <a href="#demo" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Probar gratis</a>
+    <div class="relative flex items-center gap-2">
+      <button id="btn-account" type="button" class="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Acceder</button>
+      <a href="#demo" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Probar gratis</a>
+      <div id="account-panel" class="absolute right-0 top-12 z-50 hidden w-64 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xl">
+        <p id="account-email" class="truncate text-sm font-semibold text-slate-800"></p>
+        <p id="account-plan" class="mt-0.5 text-xs text-slate-500"></p>
+        <div class="mt-3 flex flex-col gap-1.5">
+          <button id="account-portal" type="button" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Gestionar suscripción</button>
+          <button id="account-logout" type="button" class="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -461,7 +472,7 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui',
         </div>
       </div>
 
-      <p class="mt-5 text-center text-[11px] text-slate-500">El cobro automático aún no está activo en este POC: al pulsar «Comprar» se abre un email para reservar tu plan.</p>
+      <p class="mt-5 text-center text-[11px] text-slate-500">El pago se realiza con Stripe (tarjeta) y se activa al instante. Si el cobro automático no está disponible, te abrimos un email a ventas.</p>
       <div class="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs">
         <a href="#precios" id="paywall-plans" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">Comparar planes</a>
         <span class="text-slate-300">·</span>
@@ -470,6 +481,50 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui',
     </div>
   </div>
 </div>
+
+<!-- ============ MODAL DE CUENTA ============ -->
+<div id="auth-modal" class="fixed inset-0 z-[55] hidden bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div id="auth-overlay" class="mx-auto flex min-h-full max-w-md items-center justify-center">
+    <div class="w-full rounded-2xl bg-white p-6 shadow-2xl">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="auth-title" class="text-xl font-extrabold tracking-tight">Accede a tu cuenta</h2>
+          <p id="auth-subtitle" class="mt-1 text-sm text-slate-500">Entra para contratar un plan y gestionar tu cuota.</p>
+        </div>
+        <button id="auth-close" type="button" aria-label="Cerrar" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="mt-5 flex gap-1 rounded-lg bg-slate-100 p-1">
+        <button id="auth-tab-login" type="button" class="flex-1 rounded-md px-3 py-1.5 text-sm font-semibold">Entrar</button>
+        <button id="auth-tab-register" type="button" class="flex-1 rounded-md px-3 py-1.5 text-sm font-semibold">Crear cuenta</button>
+      </div>
+
+      <form id="auth-form" class="mt-4 space-y-3" novalidate>
+        <div id="auth-name-row" class="hidden">
+          <label for="auth-name" class="block text-xs font-semibold text-slate-600">Nombre (opcional)</label>
+          <input id="auth-name" type="text" autocomplete="name" placeholder="Ana Gómez" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+        </div>
+        <div>
+          <label for="auth-email" class="block text-xs font-semibold text-slate-600">Email</label>
+          <input id="auth-email" type="email" required autocomplete="email" placeholder="tu@empresa.com" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+        </div>
+        <div>
+          <label for="auth-password" class="block text-xs font-semibold text-slate-600">Contraseña</label>
+          <input id="auth-password" type="password" required minlength="8" autocomplete="current-password" placeholder="Mínimo 8 caracteres" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+        </div>
+        <p id="auth-error" class="hidden rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700"></p>
+        <button id="auth-submit" type="submit" class="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Entrar</button>
+      </form>
+
+      <p class="mt-3 text-[11px] leading-relaxed text-slate-400">El plan Free incluye 10 pruebas al mes. Sólo guardamos tu cuenta y el consumo de filas: los ficheros se procesan en memoria y no se almacenan.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Aviso flotante -->
+<div id="account-toast" class="fixed bottom-5 left-1/2 z-[60] hidden -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-lg"></div>
 
 <!-- ============ FOOTER ============ -->
 <footer class="border-t border-slate-200 bg-white py-8">
@@ -484,5 +539,6 @@ tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui',
 <script src="/static/csv.js"></script>
 <script src="/static/xlsx.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/account.js"></script>
 </body>
 </html>

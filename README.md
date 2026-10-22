@@ -86,6 +86,32 @@ acepta el origen de la landing vía CORS (configurable con `ALLOWED_ORIGINS`).
 | `POST` | `/api/clean` | Sube un fichero, normaliza y devuelve JSON + previsualización + clave de descarga |
 | `GET`  | `/api/download/{clave}/csv\|xlsx\|json` | Descarga del resultado (15 min) |
 
+### Cuentas y planes
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/auth/register` | Crea la cuenta y su organización (plan `free`) |
+| `POST` | `/auth/login` | Inicia sesión (cookie `httpOnly`) |
+| `POST` | `/auth/logout` | Cierra la sesión |
+| `GET`  | `/auth/me` | Usuario, organización, plan, límites y cuota consumida |
+| `POST` | `/billing/checkout/{plan}` | Crea la sesión de Stripe Checkout (`basic` / `pro`) |
+| `GET`  | `/billing/portal` | Abre el Customer Portal de Stripe |
+| `GET`  | `/billing/status` | Plan actual y estado de la suscripción |
+| `POST` | `/billing/confirm` | Confirma el pago (`session_id`) sin esperar al webhook |
+| `POST` | `/billing/webhook` | Eventos de Stripe (firma obligatoria en producción) |
+
+### Planes y límites
+
+| Plan | Filas/mes | Tamaño máx. | Usuarios | Histórico | API |
+|---|---|---|---|---|---|
+| `free` | 1.000 | 5 MB | 1 | 7 días | — |
+| `basic` (29 €) | 10.000 | 10 MB | 1 | 30 días | — |
+| `pro` (49 €) | 100.000 | 50 MB | 5 | 365 días | 10 claves |
+
+Además, los usuarios **sin cuenta** tienen 10 usos de prueba (1.000 filas por
+uso). Las cuotas se validan **en el servidor**: al superarlas, `POST /api/clean`
+devuelve **402** con el detalle del plan y la opción de upgrade.
+
 Parámetros de `POST /api/clean` (form): `file`, `column_types` (JSON `{"0":"company"}`),
 `remove_legal`, `remove_geo`, `remove_articles`, `title_case`, `fix_email_typos`,
 `gmail_dots`, `strip_plus_tags`, `phone_format` (`auto|national|e164|international|raw`),

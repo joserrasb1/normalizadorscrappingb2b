@@ -99,3 +99,17 @@ class ApiKey(Base):
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class StripeEvent(Base):
+    """Evento de Stripe ya procesado.
+
+    Stripe reenvía webhooks si no receive un 2xx rápido. Guardamos el ID
+    del evento para no aplicar dos veces el mismo cambio de plan.
+    """
+
+    __tablename__ = "stripe_events"
+
+    event_id = Column(String, primary_key=True)  # evt_...
+    event_type = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -13,8 +13,11 @@ alembic==1.14.0
 psycopg[binary]==3.2.3
 pydantic-settings==2.6.1
 email-validator==2.2.0
+# passlib 1.7.4 sólo es compatible con bcrypt < 4.1 (usa bcrypt.__about__).
+# Fijar 4.0.1 (wheels abi3, compatibles con Python 3.11) y NO duplicar el pin:
+# dos versiones distintas del mismo paquete hacen fallar `pip install`.
 passlib[bcrypt]==1.7.4
-bcrypt==4.2.0
+bcrypt==4.0.1
 itsdangerous==2.2.0
 
 # Billing
@@ -23,4 +26,3 @@ stripe==11.2.0
 # Testing
 pytest==8.3.3
 httpx==0.27.2
-bcrypt==4.0.1

@@ -10,7 +10,18 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production-please"
     SESSION_COOKIE_NAME: str = "dcb_session"
     SESSION_MAX_AGE: int = 60 * 60 * 24 * 7  # 7 days
-    
+
+    # URL pública de la landing (Cloudflare Pages). Es donde debe volver el
+    # usuario tras pagar en Stripe. Si se deja vacía se usa el host de la API.
+    APP_URL: str = "https://normalizadorscrappingb2b.pages.dev"
+
+    # Cookies de sesión.
+    # La landing (pages.dev) y la API (onrender.com) están en dominios
+    # distintos => para que la cookie viaje en fetch cross-site hace falta
+    # SameSite=None + Secure, y CORS con allow_credentials y origenes exactos.
+    SESSION_COOKIE_SAMESITE: str = "lax"  # lax | strict | none
+    SESSION_COOKIE_SECURE: bool = False
+
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 

@@ -15,7 +15,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.limits import get_plan_limits, ANON_FREE_TRIALS
+from app.core.limits import get_plan_limits, ANON_FREE_TRIALS, ANON_MAX_ROWS
+from app.core.cookies import session_cookie_kwargs
 from app.db import models
 
 
@@ -117,6 +118,19 @@ def check_anon_quota(request, rows_to_add: int):
                 "used": count,
             },
         )
+    if rows_to_add > ANON_MAX_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "anon_rows_exceeded",
+                "message": (
+                    f"Un uso anónimo admite hasta {ANON_MAX_ROWS:,} filas. "
+                    "Crea una cuenta para procesar listas más grandes."
+                ),
+                "limit": ANON_MAX_ROWS,
+                "used": rows_to_add,
+            },
+        )
 
 
 def set_anon_usage_cookie(response, request):
@@ -124,8 +138,7 @@ def set_anon_usage_cookie(response, request):
     response.set_cookie(
         key=ANON_COOKIE,
         value=json.dumps({"count": count}),
-        httponly=True,
         max_age=60 * 60 * 24 * 365,
-        samesite="lax",
+        **session_cookie_kwargs(),
     )
     return response

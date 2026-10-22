@@ -72,3 +72,29 @@ def create_organization(db: Session, user: models.User, name: str, slug: str) ->
     db.commit()
     
     return org
+
+
+def ensure_default_organization(db: Session, user: models.User) -> models.Organization:
+    """Devuelve la organización del usuario, creándola si no tiene ninguna.
+
+    Todo usuario necesita al menos una organización para poder usar el
+    servicio (cuotas) y contratar un plan (billing).
+    """
+    member = (
+        db.query(models.OrganizationMember)
+        .filter(models.OrganizationMember.user_id == user.id)
+        .first()
+    )
+    if member:
+        org = (
+            db.query(models.Organization)
+            .filter(models.Organization.id == member.organization_id)
+            .first()
+        )
+        if org:
+            return org
+
+    domain = (user.email or "").split("@")[-1].split(".")[0]
+    name = user.full_name or (domain.capitalize() if domain else "Mi organización")
+    slug = "org-%s" % user.id[:8]
+    return create_organization(db, user, name=name, slug=slug)

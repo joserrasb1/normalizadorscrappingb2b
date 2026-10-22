@@ -10,4 +10,32 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      # --- Configuración de la app (ajusta los valores) ---
+      - key: ENV
+        value: production
+      # Genera uno con: python -c "import secrets; print(secrets.token_urlsafe(48))"
+      - key: SECRET_KEY
+        sync: false
+      # --- Base de datos (Neon o Supabase) ---
+      # IMPORTANTE: sin esto la BD vive en /tmp y se pierde en cada reinicio.
+      - key: DATABASE_URL
+        sync: false
+      # --- Landing (Cloudflare Pages) ---
+      - key: APP_URL
+        value: https://normalizadorscrappingb2b.pages.dev
+      - key: ALLOWED_ORIGINS
+        value: https://normalizadorscrappingb2b.pages.dev
+      - key: SESSION_COOKIE_SAMESITE
+        value: none
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      # --- Stripe ---
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_BASIC
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
     healthCheckPath: /health

@@ -45,15 +45,27 @@ API).
 > La primera petición puede tardar ~1 minuto: el plan gratuito arranca en frío.
 > Es normal y sólo afecta a la API (la landing va en Cloudflare).
 
-### Opcional: restringir el CORS
+### Cookies de sesión y CORS (importante para el login y el pago)
 
-Por defecto la API acepta peticiones de cualquier origen (es pública, sin
-cookies ni credenciales). Si prefieres limitarla, en **Render → Environment**
-añade:
+La landing (Cloudflare Pages) y la API (Render) están en **dominios
+distintos**. Para que la cookie de sesión viaje en las peticiones `fetch`
+cross-site hacen falta tres cosas en **Render → Environment**:
 
 ```
 ALLOWED_ORIGINS=https://normalizadorscrappingb2b.pages.dev
+SESSION_COOKIE_SAMESITE=none
+SESSION_COOKIE_SECURE=true
 ```
+
+- `ALLOWED_ORIGINS` con la lista exacta de orígenes **activa las credenciales**
+  en el CORS (con `*` el navegador rechaza las peticiones con cookie).
+- `SESSION_COOKIE_SAMESITE=none` + `SESSION_COOKIE_SECURE=true` son
+  obligatorios para que la cookie cruce de `pages.dev` a `onrender.com`.
+- Si en algún momento sirves la landing y la API desde el **mismo origen**,
+  deja `SESSION_COOKIE_SAMESITE=lax` y `SESSION_COOKIE_SECURE=false`.
+
+> `SameSite=None` + `Secure` no funcionan en `http://localhost`: en local deja
+> `lax` / `false`.
 
 ## 2. Desplegar la landing en Cloudflare Pages (gratis) — ✅ ya hecho
 
@@ -115,7 +127,92 @@ dominio a `ALLOWED_ORIGINS` en Render.
 
 ---
 
-## 3. Despliegue monolítico (alternativa, 1 clic)
+## 3. Activar los pagos con Stripe (paso a paso)
+
+La API ya tiene el código de billing listo (`/billing/checkout/{plan}`,
+`/billing/portal`, `/billing/webhook`, `/billing/status`, `/billing/confirm`).
+Lo que falta es la cuenta de Stripe y las variables de entorno.
+
+### 3.1 Crear los dos productos y sus precios
+
+1. Entra en <https://dashboard.stripe.com> (empieza en **modo test**).
+2. **Products → Add product**:
+   - **Basic** — 29 €/mes → en *Pricing* añade **Recurring → Monthly, 29 EUR**.
+   - **Pro** — 49 €/mes → en *Pricing* añade **Recurring → Monthly, 49 EUR**.
+3. Anota los **Price IDs** (`price_...`). Son los que van en
+   `STRIPE_PRICE_BASIC` y `STRIPE_PRICE_PRO`.
+
+> Puedes copiar los IDs en modo test con el botón de copiar de cada precio.
+> El webhook **no distingue** entre test y live: usa siempre el modo que
+> tengas abierto en el dashboard.
+
+### 3.2 Configurar el Customer Portal (para cancelar / cambiar tarjeta)
+
+1. **Settings → Billing → Customer portal → Activate**.
+2. Deja marcadas al menos: *Cancel subscription*, *Update payment method*,
+   *Update subscription* y *See invoice history*.
+3. (Opcional) En *Products* puedes definir precios "alternativos" para que el
+   cliente pueda hacer upgrade/downgrade desde el portal.
+
+### 3.3 Registrar el webhook
+
+1. **Developers → Webhooks → Add endpoint**.
+2. URL:
+   ```
+   https://normalizadorscrappingb2b.onrender.com/billing/webhook
+   ```
+3. **Events** (marca exactamente estos tres):
+   - `checkout.session.completed`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+4. Pulsa **Add endpoint** y copia el **Signing secret** (`whsec_...`).
+
+> El webhook se verifica siempre con firma (`STRIPE_WEBHOOK_SECRET`). Si el
+> secreto está vacío y `ENV=production`, la API responde **503** y no acepta
+> eventos: es intencionado, para que nadie active planes sin pagar.
+
+### 3.4 Variables de entorno en Render
+
+En **Render → tu servicio → Environment → Add**, añade:
+
+| Variable | Valor |
+|---|---|
+| `STRIPE_SECRET_KEY` | `sk_test_...` (o `sk_live_...`) |
+| `STRIPE_PRICE_BASIC` | `price_...` del plan Basic |
+| `STRIPE_PRICE_PRO` | `price_...` del plan Pro |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` del paso 3.3 |
+| `APP_URL` | `https://normalizadorscrappingb2b.pages.dev` |
+| `ALLOWED_ORIGINS` | `https://normalizadorscrappingb2b.pages.dev` |
+| `SESSION_COOKIE_SAMESITE` | `none` |
+| `SESSION_COOKIE_SECURE` | `true` |
+| `ENV` | `production` |
+
+Guarda y Render redespliega automáticamente.
+
+### 3.5 Probar el flujo de pago
+
+1. Abre <https://normalizadorscrappingb2b.pages.dev> → **Acceder** → crea una
+   cuenta.
+2. Pulsa **Empezar con Basic** → se abre Stripe Checkout.
+3. Paga con la tarjeta de test `4242 4242 4242 4242` (cualquier expiry y CVC).
+4. Al volver, el plan debe estar activo y el botón de la cabecera mostrar
+   "Basic".
+5. En **Stripe → Developers → Webhooks** debe verse el evento
+   `checkout.session.completed` con respuesta **200**.
+6. Cancela la suscripción desde el portal y comprueba que el plan vuelve a
+   `free`.
+
+### 3.6 Antes de pasar a producción (live)
+
+- [ ] Cambia las claves `sk_test_...` → `sk_live_...`.
+- [ ] Crea los productos y precios **también en modo live** y actualiza
+      `STRIPE_PRICE_BASIC` / `STRIPE_PRICE_PRO`.
+- [ ] Vuelve a registrar el webhook apuntando al mismo endpoint (Stripe crea
+      un endpoint nuevo por entorno) y actualiza `STRIPE_WEBHOOK_SECRET`.
+- [ ] Configura el email de ventas en `app/static/app.js`
+      (`BILLING_EMAIL`), que es el fallback cuando Stripe no está disponible.
+
+## 4. Despliegue monolítico (alternativa, 1 clic)
 
 Si prefieres no usar dos plataformas, en Render basta con el `render.yaml` de la
 raíz: el servicio sirve **la landing y la API** desde el mismo origen. Todo
@@ -136,10 +233,32 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: ENV
+        value: production
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_URL
+        value: https://normalizadorscrappingb2b.pages.dev
+      - key: ALLOWED_ORIGINS
+        value: https://normalizadorscrappingb2b.pages.dev
+      - key: SESSION_COOKIE_SAMESITE
+        value: none
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_BASIC
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
     healthCheckPath: /health
 ```
 
-## 4. Probarlo en local (simulando el despliegue partido)
+## 5. Probarlo en local (simulando el despliegue partido)
 
 ```bash
 # terminal 1: la API
@@ -151,7 +270,7 @@ python3 -m http.server 8001 --directory dist
 # abre http://127.0.0.1:8001
 ```
 
-## 5. Cuando el POC se venda
+## 6. Cuando el POC se venda
 
 | Momento | Plan | Coste | Por qué |
 |---|---|---|---|
@@ -165,7 +284,7 @@ El salto de Render a Cloud Run es indoloro: el comando de arranque
 mismos, sólo cambia el comando de arranque a `gunicorn`/`uvicorn` con
 `--workers`.
 
-## 6. Checklist antes de compartir el link
+## 7. Checklist antes de compartir el link
 
 - [ ] `https://normalizadorscrappingb2b.pages.dev` carga en < 1 segundo
 - [ ] "Cargar ejemplo" muestra columnas detectadas y cambios
@@ -175,3 +294,18 @@ mismos, sólo cambia el comando de arranque a `gunicorn`/`uvicorn` con
 - [ ] La consola del navegador no tiene errores (F12 → Console)
 - [ ] La pestaña Network no muestra peticiones a `/api/clean` al usar el modo
       navegador (el fichero no sale del equipo)
+- [ ] "Acceder" → crear cuenta funciona y la cabecera muestra el plan
+- [ ] "Empezar con Basic" abre Stripe Checkout y al pagar se activa el plan
+- [ ] "Gestionar suscripción" abre el Customer Portal de Stripe
+- [ ] `https://normalizadorscrappingb2b.onrender.com/billing/status` devuelve
+      401 sin sesión (protegido) y 200 con sesión
+
+## 8. Pendiente antes de vender de verdad
+
+- [ ] **Base de datos persistente**: la API usa SQLite en `/tmp/app.db`, que se
+      borra en cada reinicio de Render (se pierden cuentas, planes y usage).
+      Crear una BD en **Neon** o **Supabase** y poner `DATABASE_URL` en Render.
+- [ ] Migrar de `create_all` a **Alembic** para no perder cambios de esquema.
+- [ ] Historial de procesamientos (paso 4) con **R2** + TTL.
+- [ ] Multi-usuario e invitaciones (paso 5) + API keys.
+- [ ] Quitar la etiqueta "POC" de la landing.
