@@ -60,6 +60,7 @@ from app.usage.service import check_anon_quota, set_anon_usage_cookie, consume_q
 from app.core.limits import max_bytes_for_plan, ANON_MAX_MB, MB_TO_BYTES
 from app.auth.session import verify_session_token
 from app.core.config import settings
+from app.billing.router import router as billing_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -104,6 +105,7 @@ except Exception:
     pass
 
 app.include_router(auth_router)
+app.include_router(billing_router)
 
 # --- CORS ---------------------------------------------------------------
 # La landing puede servirse desde Cloudflare Pages (otro dominio) y llamar a
