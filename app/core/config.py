@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
-        "postgresql+psycopg://user:pass@localhost:5432/dcb2b"
+        "sqlite:///./app.db"
     )
     
     # CORS
