@@ -240,7 +240,16 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
                 detail="Firma del webhook inválida.",
             )
     else:
-        if settings.ENV == "production":
+        # Sin secreto configurado: sólo se acepta para desarrollo local.
+        # En producción (o desde cualquier IP externa) se rechaza, para que
+        # nadie pueda activar planes enviando JSON sin firmar.
+        client_host = request.client.host if request.client else ""
+        if settings.ENV == "production" or client_host not in (
+            "127.0.0.1",
+            "::1",
+            "localhost",
+            "testclient",
+        ):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Webhook no configurado: define STRIPE_WEBHOOK_SECRET.",

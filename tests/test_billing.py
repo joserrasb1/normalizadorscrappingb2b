@@ -313,6 +313,28 @@ def test_webhook_sin_secreto_falla_en_produccion(logged_in, fake_stripe, monkeyp
     assert r.status_code == 503
 
 
+def test_webhook_sin_secreto_rechaza_origenes_externos(db, fake_stripe, monkeypatch):
+    """Aunque ENV no sea 'production', un POST externo sin firma se rechaza."""
+    monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", "")
+    monkeypatch.setattr(settings, "ENV", "dev")
+
+    from fastapi.testclient import TestClient
+    from main import app
+
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app, client=("8.8.8.8", 1234)) as external:
+            r = external.post(
+                "/billing/webhook", json=_event("evt_ext", "invoice.paid", {})
+            )
+            assert r.status_code == 503
+    finally:
+        app.dependency_overrides.clear()
+
+
 # --------------------------------------------------------------------------
 # Webhook: sincronización del plan
 # --------------------------------------------------------------------------
