@@ -305,9 +305,9 @@
     const dl = $('#downloads');
     if (state.mode === 'server' && data.key){
       dl.classList.remove('hidden');
-      $('#dl-csv').href = '/api/download/' + data.key + '/csv';
-      $('#dl-xlsx').href = '/api/download/' + data.key + '/xlsx';
-      $('#dl-json').href = '/api/download/' + data.key + '/json';
+      $('#dl-csv').href = API_BASE + '/api/download/' + data.key + '/csv';
+      $('#dl-xlsx').href = API_BASE + '/api/download/' + data.key + '/xlsx';
+      $('#dl-json').href = API_BASE + '/api/download/' + data.key + '/json';
     } else {
       dl.classList.add('hidden');
     }
@@ -358,6 +358,13 @@
 
   // ---------- Init ----------
   function init(){
+    // Enlaces del pie a la API (/docs y /health): deben apuntar a la API,
+    // no al origen que sirve la landing (puede ser Cloudflare Pages).
+    const linkDocs = $('#link-api-docs');
+    const linkHealth = $('#link-api-health');
+    if (linkDocs) linkDocs.href = API_BASE + '/docs';
+    if (linkHealth) linkHealth.href = API_BASE + '/health';
+
     // Tabs de modo
     $('#mode-browser').addEventListener('click', () => { state.mode = 'browser'; updateModeUI(); if (state.file) processInBrowser(state.file); });
     $('#mode-server').addEventListener('click', () => { state.mode = 'server'; updateModeUI(); if (state.file) uploadToServer(state.file); });

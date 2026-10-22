@@ -96,6 +96,54 @@ def test_el_javascript_usa_la_url_de_la_api_configurable():
     assert "fetch('/api/clean'" not in source
 
 
+def test_ninguna_ruta_de_la_api_apunta_al_origen_de_la_landing():
+    """
+    Todas las rutas de la API deben pasar por API_BASE. Si alguna se quedara
+    como '/api/...' relativo, en Cloudflare Pages apuntaría al dominio de la
+    landing (404) en vez de a la API de Render.
+    """
+    app_js = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "app",
+        "static",
+        "app.js",
+    )
+    with open(app_js, encoding="utf-8") as fh:
+        source = fh.read()
+
+    # Rutas de la API que aparecen en el código (fetch y enlaces de descarga)
+    rutas = re.findall(r"['\"](/api/[^'\"]*)['\"]", source)
+    assert rutas, "debería haber rutas de la API en app.js"
+    for ruta in rutas:
+        # Cada uso debe ir precedido de API_BASE +
+        assert "API_BASE + '%s'" % ruta in source, ruta
+
+
+def test_los_enlaces_del_pie_apuntan_a_la_api():
+    """Los enlaces /docs y /health del pie se corrigen en JS con API_BASE."""
+    app_js = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "app",
+        "static",
+        "app.js",
+    )
+    with open(app_js, encoding="utf-8") as fh:
+        source = fh.read()
+    assert "linkDocs.href = API_BASE + '/docs'" in source
+    assert "linkHealth.href = API_BASE + '/health'" in source
+
+    html = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "app",
+        "templates",
+        "index.html",
+    )
+    with open(html, encoding="utf-8") as fh:
+        template = fh.read()
+    assert 'id="link-api-docs"' in template
+    assert 'id="link-api-health"' in template
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node no está instalado")
 @pytest.mark.parametrize(
     "meta,esperado",
