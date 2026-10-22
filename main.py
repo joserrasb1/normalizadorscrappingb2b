@@ -52,6 +52,9 @@ from app.tabular import (
     write_csv,
     write_xlsx,
 )
+from app.auth.router import router as auth_router
+from app.db.base import Base
+from app.db.session import engine
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -88,6 +91,14 @@ app = FastAPI(
 )
 
 app.add_middleware(BodySizeLimitMiddleware)
+
+# Crear tablas al inicio (para dev con sqlite, en prod usar Alembic)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception:
+    pass
+
+app.include_router(auth_router)
 
 # --- CORS ---------------------------------------------------------------
 # La landing puede servirse desde Cloudflare Pages (otro dominio) y llamar a

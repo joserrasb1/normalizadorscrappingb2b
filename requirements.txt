@@ -7,6 +7,16 @@ starlette==0.41.2
 # Lectura/escritura de XLSX
 openpyxl==3.1.5
 
+# Auth + DB
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+pydantic-settings==2.6.1
+email-validator==2.2.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.0
+itsdangerous==2.2.0
+
 # Testing
 pytest==8.3.3
 httpx==0.27.2
