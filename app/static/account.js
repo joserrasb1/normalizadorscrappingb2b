@@ -79,18 +79,14 @@
     var panel = $('#account-panel');
     var email = $('#account-email');
     var plan = $('#account-plan');
-    var badge = $('#account-plan-badge');
 
     if (state.user){
-      if (btn) btn.textContent = planLabel(state.plan);
+      if (btn) btn.textContent = state.plan && state.plan !== 'free' ? planLabel(state.plan) : 'Mi cuenta';
       if (email) email.textContent = state.user.email;
       if (plan) plan.textContent = 'Plan ' + planLabel(state.plan) +
         (state.org && state.org.name ? ' · ' + state.org.name : '');
-      if (badge) badge.textContent = planLabel(state.plan);
-      show(panel);
     } else {
       if (btn) btn.textContent = 'Acceder';
-      if (badge) badge.textContent = '';
       hide(panel);
     }
   }
@@ -123,6 +119,8 @@
   function openAuth(mode, pendingPlan){
     state.pendingPlan = pendingPlan || null;
     setAuthMode(mode || 'login');
+    var pwd = $('#auth-password');
+    if (pwd) pwd.value = '';
     show($('#auth-modal'));
     var email = $('#auth-email');
     if (email) window.setTimeout(function(){ email.focus(); }, 30);
@@ -195,6 +193,7 @@
       state.user = null;
       state.org = null;
       state.plan = 'free';
+      hide($('#account-panel'));
       renderAccount();
       toast('Sesión cerrada.');
     });
@@ -277,13 +276,22 @@
 
   // ------------------------------------------------------------ Init ----
   function init(){
-    on($('#btn-account'), 'click', function(){
+    on($('#btn-account'), 'click', function(e){
+      if (e && e.stopPropagation) e.stopPropagation();
       if (state.user){
         var panel = $('#account-panel');
         if (panel) panel.classList.toggle('hidden');
       } else {
         openAuth('login', null);
       }
+    });
+    // Cerrar el desplegable al hacer clic fuera.
+    document.addEventListener('click', function(e){
+      var panel = $('#account-panel');
+      if (!panel || panel.classList.contains('hidden')) return;
+      if (panel.contains(e.target)) return;
+      if (e.target && e.target.closest && e.target.closest('#btn-account')) return;
+      hide(panel);
     });
     on($('#auth-close'), 'click', closeAuth);
     on($('#auth-overlay'), 'click', function(e){ if (e.target === e.currentTarget) closeAuth(); });
