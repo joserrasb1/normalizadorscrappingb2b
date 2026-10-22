@@ -13,6 +13,7 @@ Salida:
 
     dist/index.html      landing con la URL de la API inyectada
     dist/static/...      rules.js, engine.js, csv.js, xlsx.js, app.js, demo.csv
+    dist/404.html        página de error 404 (not_found_handling: 404-page)
     dist/_headers        cabeceras de seguridad (CSP que permite la API)
 
 Notas:
@@ -46,6 +47,43 @@ _HEADERS_TEMPLATE = """\
   Content-Security-Policy: {csp}
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Cross-Origin-Resource-Policy: same-origin
+"""
+
+
+# Página 404 para Cloudflare Pages (not_found_handling: "404-page").
+# Sin dependencias externas: estilos en línea, así que funciona con la CSP.
+_NOT_FOUND_TEMPLATE = """<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Página no encontrada · Data Cleaner B2B</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; min-height: 100vh; display: grid; place-items: center;
+          font-family: Inter, system-ui, -apple-system, sans-serif;
+          background: #f8fafc; color: #0f172a; padding: 24px; }}
+  .card {{ max-width: 560px; text-align: center; }}
+  .code {{ font-size: 72px; font-weight: 800; letter-spacing: -.04em;
+           color: #6366f1; line-height: 1; }}
+  h1 {{ font-size: 24px; margin: 16px 0 8px; }}
+  p {{ color: #475569; line-height: 1.6; margin: 0 0 24px; }}
+  a {{ display: inline-block; background: #4f46e5; color: #fff;
+       text-decoration: none; padding: 12px 20px; border-radius: 10px;
+       font-weight: 600; }}
+  a:hover {{ background: #4338ca; }}
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="code">404</div>
+    <h1>Esta página no existe</h1>
+    <p>El enlace puede estar mal escrito o la página se ha movido.</p>
+    <a href="/">Volver al inicio</a>
+  </main>
+</body>
+</html>
 """
 
 
@@ -100,7 +138,11 @@ def build(out_dir: str, api_base: Optional[str] = None) -> List[str]:
     with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(html)
 
-    # 3. Cabeceras de seguridad (con la API permitida en connect-src)
+    # 3. Página 404 (Cloudflare Pages la sirve con not_found_handling=404-page)
+    with open(os.path.join(out, "404.html"), "w", encoding="utf-8") as fh:
+        fh.write(_NOT_FOUND_TEMPLATE)
+
+    # 4. Cabeceras de seguridad (con la API permitida en connect-src)
     connect = base if base else ""
     with open(os.path.join(out, "_headers"), "w", encoding="utf-8") as fh:
         fh.write(_HEADERS_TEMPLATE.format(csp=content_security_policy(connect)))

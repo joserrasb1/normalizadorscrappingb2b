@@ -28,6 +28,7 @@ def test_build_genera_el_sitio_completo(tmp_path):
 
     for esperado in (
         "index.html",
+        "404.html",
         "_headers",
         os.path.join("static", "rules.js"),
         os.path.join("static", "engine.js"),
@@ -52,6 +53,18 @@ def test_build_sin_api_deja_el_mismo_origen(tmp_path):
     build(str(out), None)
     html = (out / "index.html").read_text(encoding="utf-8")
     assert '<meta name="api-base" content="">' in html
+
+
+def test_build_genera_pagina_404(tmp_path):
+    """Cloudflare Pages necesita 404.html si not_found_handling=404-page."""
+    out = tmp_path / "dist"
+    build(str(out), API)
+    html = (out / "404.html").read_text(encoding="utf-8")
+    assert "404" in html
+    assert 'href="/"' in html
+    assert 'name="robots" content="noindex"' in html
+    # Sin recursos externos: debe funcionar con la CSP (default-src 'self')
+    assert "http://" not in html and "https://" not in html
 
 
 def test_build_rechaza_urls_invalidas(tmp_path):
