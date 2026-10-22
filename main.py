@@ -54,7 +54,12 @@ from app.tabular import (
 )
 from app.auth.router import router as auth_router
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import engine, SessionLocal
+from app.db import models
+from app.usage.service import check_anon_quota, set_anon_usage_cookie, consume_quota, get_plan_limits
+from app.core.limits import max_bytes_for_plan, ANON_MAX_MB, MB_TO_BYTES
+from app.auth.session import verify_session_token
+from app.core.config import settings
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -143,6 +148,7 @@ async def health() -> JSONResponse:
 
 @app.post("/api/clean")
 async def clean_upload(
+    request: Request,
     file: UploadFile = File(...),
     column_types: Optional[str] = Form(None),
     remove_legal: bool = Form(True),
@@ -170,11 +176,35 @@ async def clean_upload(
             detail="Extensión no permitida. Usa .csv, .tsv, .txt o .xlsx",
         )
 
+    db = SessionLocal()
+    org = None
     try:
-        data = await file.read(MAX_UPLOAD_BYTES + 1)
-        if len(data) > MAX_UPLOAD_BYTES:
+        # Comprobar si hay sesión
+        token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+        user_id = verify_session_token(token) if token else None
+        if user_id:
+            user = db.query(models.User).filter(models.User.id == user_id).first()
+            if user:
+                member = (
+                    db.query(models.OrganizationMember)
+                    .filter(models.OrganizationMember.user_id == user.id)
+                    .first()
+                )
+                if member:
+                    org = db.query(models.Organization).filter(
+                        models.Organization.id == member.organization_id
+                    ).first()
+
+        # Límites por tamaño
+        max_bytes = max_bytes_for_plan(org.plan if org else None)
+        if not org:
+            max_bytes = ANON_MAX_MB * MB_TO_BYTES
+
+        data = await file.read(max_bytes + 1)
+        if len(data) > max_bytes:
             raise HTTPException(
-                status_code=413, detail="Tamaño excede límite (%d bytes)" % MAX_UPLOAD_BYTES
+                status_code=413,
+                detail=f"Tamaño excede límite ({max_bytes // MB_TO_BYTES} MB) para tu plan",
             )
         if len(data) == 0:
             raise HTTPException(status_code=400, detail="Fichero vacío")
@@ -184,6 +214,13 @@ async def clean_upload(
             raise HTTPException(status_code=400, detail="; ".join(cc.blocked_reasons))
 
         headers, rows, meta = read_table(data, file.filename)
+        rows_count = len(rows)
+
+        # Cuotas
+        if org:
+            consume_quota(db, org, rows_count)
+        else:
+            check_anon_quota(request, rows_count)
 
         ctype_map: Dict[int, str] = {}
         if column_types:
@@ -229,7 +266,7 @@ async def clean_upload(
             }
         )
 
-        return JSONResponse(
+        response = JSONResponse(
             content={
                 "ok": True,
                 "key": key,
@@ -247,12 +284,21 @@ async def clean_upload(
                     "xlsx": f"/api/download/{key}/xlsx",
                     "json": f"/api/download/{key}/json",
                 },
+                "plan": org.plan if org else "anonymous",
+                "trial": {"used": 0} if org else None,
             }
         )
+        if not org:
+            response = set_anon_usage_cookie(response, request)
+        return response
     except HTTPException:
+        db.rollback()
         raise
     except Exception:
+        db.rollback()
         raise HTTPException(status_code=500, detail="Error inesperado al procesar el fichero")
+    finally:
+        db.close()
 
 
 @app.post("/api/detect")

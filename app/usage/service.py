@@ -1,0 +1,131 @@
+# -*- coding: utf-8 -*-
+"""
+app/usage/service.py
+-------------------
+Control de cuotas server-side para usuarios autenticados y anónimos.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple
+
+from fastapi import HTTPException, status
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.core.limits import get_plan_limits, ANON_FREE_TRIALS
+from app.db import models
+
+
+ANON_COOKIE = "dcb_anon_usage"
+
+
+def _period_bounds(now: datetime | None = None) -> Tuple[datetime, datetime]:
+    now = now or datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        end = start.replace(year=start.year + 1, month=1)
+    else:
+        end = start.replace(month=start.month + 1)
+    return start, end
+
+
+def get_or_create_usage(db: Session, org: models.Organization) -> models.Usage:
+    start, end = _period_bounds()
+    usage = (
+        db.query(models.Usage)
+        .filter(
+            models.Usage.organization_id == org.id,
+            models.Usage.period_start == start,
+        )
+        .first()
+    )
+    if usage:
+        return usage
+
+    limits = get_plan_limits(org.plan)
+    usage = models.Usage(
+        organization_id=org.id,
+        period_start=start,
+        period_end=end,
+        rows_used=0,
+        rows_limit=limits["rows_month"],
+    )
+    db.add(usage)
+    db.commit()
+    db.refresh(usage)
+    return usage
+
+
+def check_quota(db: Session, org: models.Organization, rows_to_add: int) -> models.Usage:
+    usage = get_or_create_usage(db, org)
+    limits = get_plan_limits(org.plan)
+    # Mantener límite sincronizado con plan
+    if usage.rows_limit != limits["rows_month"]:
+        usage.rows_limit = limits["rows_month"]
+        db.commit()
+        db.refresh(usage)
+
+    if usage.rows_used + rows_to_add > usage.rows_limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "quota_exceeded",
+                "message": f"Has alcanzado el límite de {usage.rows_limit:,} filas este mes.",
+                "plan": org.plan,
+                "used": usage.rows_used,
+                "limit": usage.rows_limit,
+                "upgrade_to": "basic" if org.plan == "free" else "pro",
+            },
+        )
+    return usage
+
+
+def consume_quota(db: Session, org: models.Organization, rows_to_add: int) -> models.Usage:
+    usage = check_quota(db, org, rows_to_add)
+    # Incremento atómico por transacción
+    usage.rows_used += rows_to_add
+    db.add(usage)
+    db.commit()
+    db.refresh(usage)
+    return usage
+
+
+# --- Anónimos ---
+def get_anon_usage_count(request) -> int:
+    raw = request.cookies.get(ANON_COOKIE)
+    if not raw:
+        return 0
+    try:
+        data = json.loads(raw)
+        return int(data.get("count", 0))
+    except Exception:
+        return 0
+
+
+def check_anon_quota(request, rows_to_add: int):
+    count = get_anon_usage_count(request)
+    if count >= ANON_FREE_TRIALS:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "anon_quota_exceeded",
+                "message": f"Has agotado tus {ANON_FREE_TRIALS} pruebas gratis. Regístrate o elige un plan.",
+                "limit": ANON_FREE_TRIALS,
+                "used": count,
+            },
+        )
+
+
+def set_anon_usage_cookie(response, request):
+    count = get_anon_usage_count(request) + 1
+    response.set_cookie(
+        key=ANON_COOKIE,
+        value=json.dumps({"count": count}),
+        httponly=True,
+        max_age=60 * 60 * 24 * 365,
+        samesite="lax",
+    )
+    return response
