@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", 
-        "sqlite:///./app.db"
+        "sqlite:////tmp/app.db"
     )
     
     # CORS

@@ -20,8 +20,8 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    owned_organizations = relationship("Organization", back_populates="owner")
-    memberships = relationship("OrganizationMember", back_populates="user")
+    owned_organizations = relationship("Organization", back_populates="owner", foreign_keys="Organization.owner_id")
+    memberships = relationship("OrganizationMember", back_populates="user", foreign_keys="OrganizationMember.user_id")
 
 
 class Organization(Base):
@@ -37,10 +37,10 @@ class Organization(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    owner = relationship("User", back_populates="owned_organizations")
-    members = relationship("OrganizationMember", back_populates="organization")
-    usage = relationship("Usage", back_populates="organization")
-    jobs = relationship("Job", back_populates="organization")
+    owner = relationship("User", back_populates="owned_organizations", foreign_keys=[owner_id])
+    members = relationship("OrganizationMember", back_populates="organization", foreign_keys="OrganizationMember.organization_id")
+    usage = relationship("Usage", back_populates="organization", foreign_keys="Usage.organization_id")
+    jobs = relationship("Job", back_populates="organization", foreign_keys="Job.organization_id")
 
 
 class OrganizationMember(Base):
@@ -52,8 +52,8 @@ class OrganizationMember(Base):
     role = Column(String, default="member")  # owner, member
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    organization = relationship("Organization", back_populates="members")
-    user = relationship("User", back_populates="members")
+    organization = relationship("Organization", back_populates="members", foreign_keys=[organization_id])
+    user = relationship("User", back_populates="memberships", foreign_keys=[user_id])
 
 
 class Usage(Base):
@@ -68,7 +68,7 @@ class Usage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    organization = relationship("Organization", back_populates="usage")
+    organization = relationship("Organization", back_populates="usage", foreign_keys=[organization_id])
 
 
 class Job(Base):
@@ -85,7 +85,7 @@ class Job(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
     
-    organization = relationship("Organization", back_populates="jobs")
+    organization = relationship("Organization", back_populates="jobs", foreign_keys=[organization_id])
 
 
 class ApiKey(Base):
