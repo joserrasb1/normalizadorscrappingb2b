@@ -1,5 +1,16 @@
 # Despliegue del POC
 
+## Estado actual (ya desplegado)
+
+| Pieza | URL | Estado |
+|---|---|---|
+| Landing + modo navegador | <https://normalizadorscrappingb2b.pages.dev> | ✅ Cloudflare Pages |
+| API Python | <https://normalizadorscrappingb2b.onrender.com> | ✅ Render Free |
+| Salud de la API | <https://normalizadorscrappingb2b.onrender.com/health> | ✅ `{"status":"ok"}` |
+
+El auto-deploy está activo: **cada `git push` a `main` reconstruye la landing**
+en Cloudflare Pages y redespliega la API en Render.
+
 Arquitectura elegida: **landing + modo navegador en Cloudflare Pages** (gratis,
 sin límite de tráfico, **nunca duerme**) y **API Python en Render Free**
 (gratis, duerme a los 15 min, pero solo la usa quien sube un XLSX o llama a la
@@ -17,7 +28,7 @@ API).
 
 ---
 
-## 1. Desplegar la API en Render (gratis)
+## 1. Desplegar la API en Render (gratis) — ✅ ya hecho
 
 1. Entra en <https://dashboard.render.com> → **New → Web Service** → conecta el
    repositorio `joserrasb1/normalizadorscrappingb2b`.
@@ -28,8 +39,8 @@ API).
    - **Instance type**: Free
 3. **Deploy**. Anota la URL, del estilo
    `https://normalizadorscrappingb2b.onrender.com`.
-4. Comprueba que funciona: `https://TU-URL.onrender.com/health` → `{"status":"ok"}`
-   y `https://TU-URL.onrender.com/docs` → la documentación de la API.
+4. Comprueba que funciona: `https://normalizadorscrappingb2b.onrender.com/health` → `{"status":"ok"}`
+   y `https://normalizadorscrappingb2b.onrender.com/docs` → la documentación de la API.
 
 > La primera petición puede tardar ~1 minuto: el plan gratuito arranca en frío.
 > Es normal y sólo afecta a la API (la landing va en Cloudflare).
@@ -41,10 +52,10 @@ cookies ni credenciales). Si prefieres limitarla, en **Render → Environment**
 añade:
 
 ```
-ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com   # <- pon aquí el dominio real de Pages
+ALLOWED_ORIGINS=https://normalizadorscrappingb2b.pages.dev
 ```
 
-## 2. Desplegar la landing en Cloudflare Pages (gratis)
+## 2. Desplegar la landing en Cloudflare Pages (gratis) — ✅ ya hecho
 
 > **Tu API ya está desplegada**: `https://normalizadorscrappingb2b.onrender.com`
 > (comprobado: `/health` → `{"status":"ok"}`). Usa esa URL en los campos de abajo.
@@ -65,7 +76,7 @@ ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com   # <- pon aqu
      (si lo defines como variable, puedes poner el build command sin
      `--api-base`; el script también la lee del entorno)
 3. **Save and Deploy**. En unos segundos tendrás
-   `https://TU-PAGES.pages.dev`.
+   `https://normalizadorscrappingb2b.pages.dev`.
 4. Comprueba:
    - La landing carga **instantáneamente** (sin esperar 30 s).
    - El botón **"Cargar ejemplo"** funciona (todo se procesa en el navegador).
@@ -85,6 +96,12 @@ ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com   # <- pon aqu
   `PYTHON_VERSION`.
 - La build genera un fichero `_headers` con las cabeceras de seguridad (CSP
   que permite conectar con la API). Cloudflare Pages lo aplica solo.
+- La build genera también un `404.html`. **Es importante**: sin él, Cloudflare
+  Pages asume que el sitio es una SPA y devuelve 200 con la landing en
+  cualquier ruta inexistente (soft 404, malo para SEO).
+- Si añades rutas nuevas y quieres ver el despliegue al momento: **Deployments**
+  muestra cada build; el botón para relanzar la última es **Retry deployment**
+  (el "Create deployment" solo aparece en la vista de un despliegue concreto).
 
 > **Importante**: primero despliega la API en Render y **después** Pages,
 > porque la build necesita la URL de la API. Si luego cambias la URL de
@@ -150,10 +167,11 @@ mismos, sólo cambia el comando de arranque a `gunicorn`/`uvicorn` con
 
 ## 6. Checklist antes de compartir el link
 
-- [ ] `https://TU-PAGES.pages.dev` carga en < 1 segundo
+- [ ] `https://normalizadorscrappingb2b.pages.dev` carga en < 1 segundo
 - [ ] "Cargar ejemplo" muestra columnas detectadas y cambios
 - [ ] "En el servidor" sube el demo y descarga el CSV limpio
-- [ ] `https://TU-URL.onrender.com/health` → `{"status":"ok"}`
+- [ ] `https://normalizadorscrappingb2b.onrender.com/health` → `{"status":"ok"}`
+- [ ] Una URL inexistente (`/no-existe`) devuelve **404** con la página propia
 - [ ] La consola del navegador no tiene errores (F12 → Console)
 - [ ] La pestaña Network no muestra peticiones a `/api/clean` al usar el modo
       navegador (el fichero no sale del equipo)

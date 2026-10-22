@@ -7,11 +7,14 @@ Sube un CSV/TSV/XLSX "sucio" de scraping o de un CRM y obtienes una tabla
 limpia, un informe de todos los cambios aplicados y la descarga en CSV, Excel o
 JSON.
 
+**Demo en producción:** <https://normalizadorscrappingb2b.pages.dev> ·
+**API:** <https://normalizadorscrappingb2b.onrender.com/health>
+
 - 🧠 **Sin IA**: todo son reglas y RegEx deterministas (reproducibles y
   auditables). Hay un punto de extensión documentado para IA en el futuro.
 - 🔒 **Modo navegador**: el fichero **no sale de tu ordenador**; se procesa con
   JavaScript en el propio navegador.
-- 🧪 **174 tests** que garantizan que el motor del servidor (Python) y el del
+- 🧪 **177 tests** que garantizan que el motor del servidor (Python) y el del
   navegador (JavaScript) devuelven **exactamente lo mismo**.
 
 ---
@@ -160,7 +163,7 @@ normalizadorscrappingb2b/          ← raíz de este repositorio
 ├── tools/
 │   ├── gen_rules_js.py         genera app/static/rules.js desde app/rules.py
 │   └── build_static.py         genera el sitio estático para Cloudflare Pages
-└── tests/                      174 tests (pytest)
+└── tests/                      177 tests (pytest)
 ```
 
 ### Fuente única de verdad
