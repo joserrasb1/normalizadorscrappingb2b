@@ -23,8 +23,21 @@
     serverKey: null,
     stats: null,
     fileName: 'prospectos.csv',
-    busy: false
+    busy: false,
+    file: null,
+    pendingUse: false       // true cuando se procesa un fichero nuevo (consume 1 uso)
   };
+
+  // ---------- Prueba gratuita (sólo UI) ----------
+  // Este POC no tiene cuentas ni backend de licencias: el contador vive en
+  // localStorage. Al integrar el cobro habrá que validar la licencia también en
+  // el servidor (hoy se puede saltar borrando esta clave del navegador).
+  const FREE_LIMIT = 10;
+  const USAGE_KEY = 'dcb2b_uses_v1';
+  // Cambia este email por el de ventas antes de publicar.
+  const BILLING_EMAIL = 'joserrasb@gmail.com';
+  const PLAN_PRICES = { 'Basic': '29 €/mes', 'Pro': '49 €/mes', 'a medida': 'a medida' };
+  let memoryUses = 0; // fallback cuando localStorage no está disponible (tests, modo privado)
 
   const DEFAULT_OPTIONS = {
     removeLegal: true,
@@ -73,9 +86,95 @@
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
+  // ---------- Contador de la prueba gratuita ----------
+  function usesCount(){
+    try {
+      const raw = window.localStorage.getItem(USAGE_KEY);
+      if (raw == null) return memoryUses;
+      const n = parseInt(raw, 10);
+      return isFinite(n) && n > 0 ? Math.min(n, FREE_LIMIT) : 0;
+    } catch (e){
+      return memoryUses;
+    }
+  }
+
+  function remainingUses(){
+    return Math.max(0, FREE_LIMIT - usesCount());
+  }
+
+  function setUses(n){
+    memoryUses = Math.max(0, Math.min(FREE_LIMIT, n));
+    try { window.localStorage.setItem(USAGE_KEY, String(memoryUses)); } catch (e) { /* modo privado */ }
+    renderUsage();
+  }
+
+  function finishUse(){
+    if (!state.pendingUse) return;
+    state.pendingUse = false;
+    setUses(usesCount() + 1);
+  }
+
+  function cancelUse(){
+    state.pendingUse = false;
+  }
+
+  function renderUsage(){
+    const left = remainingUses();
+
+    const badge = $('#usage-badge');
+    if (badge){
+      badge.textContent = left > 0 ? left + '/' + FREE_LIMIT + ' gratis' : 'Sin pruebas';
+      badge.className = 'rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ' +
+        (left > 0
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+          : 'bg-amber-50 text-amber-700 ring-amber-200');
+    }
+
+    const line = $('#usage-line');
+    if (line){
+      line.innerHTML = left > 0
+        ? 'Te quedan <strong class="font-semibold text-slate-700">' + left + ' de ' + FREE_LIMIT +
+          '</strong> pruebas gratis · el ejemplo no consume usos'
+        : '<strong class="font-semibold text-amber-700">Has usado tus ' + FREE_LIMIT +
+          ' pruebas gratis</strong> · <a href="#precios" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">ver planes</a>';
+    }
+  }
+
+  function showPaywall(){
+    const m = $('#paywall');
+    if (!m) return;
+    m.classList.remove('hidden');
+    m.style.display = 'block';
+    document.body.classList.add('overflow-hidden');
+  }
+
+  function hidePaywall(){
+    const m = $('#paywall');
+    if (!m) return;
+    m.classList.add('hidden');
+    m.style.display = '';
+    document.body.classList.remove('overflow-hidden');
+  }
+
+  function billingHref(plan){
+    const subject = 'Quiero el plan ' + plan + ' de Data Cleaner B2B';
+    const body = 'Hola,\n\nQuiero contratar el plan ' + plan + ' (' +
+      (PLAN_PRICES[plan] || plan) + ').\n\n' +
+      '- Empresa:\n- Nº de usuarios:\n- Volumen aproximado (filas/mes):\n\nGracias.';
+    return 'mailto:' + BILLING_EMAIL +
+      '?subject=' + encodeURIComponent(subject) +
+      '&body=' + encodeURIComponent(body);
+  }
+
   // ---------- Carga de fichero ----------
   function handleFile(file){
     if (!file) return;
+    if (remainingUses() <= 0){
+      cancelUse();
+      showPaywall();
+      return;
+    }
+    state.pendingUse = true;
     const name = (file.name || '').toLowerCase();
     if (/\.(xlsx|xlsm)$/.test(name)){
       setStatus('El formato XLSX requiere el modo servidor (súbelo con el botón "Procesar en el servidor").', 'error');
@@ -103,11 +202,13 @@
         state.columns = window.DATA_CLEANER.detectColumns(state.headers, state.rows);
         renderColumns();
         runLocalClean();
+        finishUse();
       } catch (err){
+        cancelUse();
         setStatus('Error al leer el fichero: ' + err.message, 'error');
       }
     };
-    reader.onerror = () => setStatus('Error al leer el fichero.', 'error');
+    reader.onerror = () => { cancelUse(); setStatus('Error al leer el fichero.', 'error'); };
     reader.readAsArrayBuffer(file);
   }
 
@@ -140,9 +241,10 @@
         state.fileName = file.name;
         renderColumns();
         renderResults(data);
+        finishUse();
         setStatus('Listo: ' + data.total_rows + ' fila(s) procesadas.', 'ok');
       })
-      .catch((err) => setStatus(serverErrorMessage(err), 'error'));
+      .catch((err) => { cancelUse(); setStatus(serverErrorMessage(err), 'error'); });
   }
 
   function serverErrorMessage(err){
@@ -365,6 +467,29 @@
     if (linkDocs) linkDocs.href = API_BASE + '/docs';
     if (linkHealth) linkHealth.href = API_BASE + '/health';
 
+    // Prueba gratuita: contador, paywall y botones de compra
+    renderUsage();
+    $$('[data-billing-plan]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.location.href = billingHref(btn.getAttribute('data-billing-plan'));
+      });
+    });
+    const closeBtn = $('#paywall-close');
+    if (closeBtn) closeBtn.addEventListener('click', hidePaywall);
+    const overlay = $('#paywall-overlay');
+    if (overlay) overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) hidePaywall();
+    });
+    const plansLink = $('#paywall-plans');
+    if (plansLink) plansLink.addEventListener('click', hidePaywall);
+    const demoFromPaywall = $('#paywall-demo');
+    if (demoFromPaywall) demoFromPaywall.addEventListener('click', () => {
+      hidePaywall();
+      const demoBtn = $('#load-demo');
+      if (demoBtn) demoBtn.click();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePaywall(); });
+
     // Tabs de modo
     $('#mode-browser').addEventListener('click', () => { state.mode = 'browser'; updateModeUI(); if (state.file) processInBrowser(state.file); });
     $('#mode-server').addEventListener('click', () => { state.mode = 'server'; updateModeUI(); if (state.file) uploadToServer(state.file); });
@@ -396,6 +521,7 @@
           const res = await fetch('/static/demo.csv');
           const text = await res.text();
           const parsed = window.CSV_UTILS.parse(text);
+          cancelUse(); // el ejemplo es una demostración: no consume pruebas
           state.headers = parsed.headers;
           state.rows = parsed.rows;
           state.fileName = 'ejemplo_prospectos.csv';
@@ -430,5 +556,13 @@
   document.addEventListener('DOMContentLoaded', init);
 
   // Expuesto para depuración en la consola del navegador y para los tests.
-  window.DATA_CLEANER_CONFIG = { apiBase: API_BASE };
+  window.DATA_CLEANER_CONFIG = {
+    apiBase: API_BASE,
+    freeLimit: FREE_LIMIT,
+    usage: {
+      remaining: remainingUses,
+      used: usesCount,
+      reset: function(){ setUses(0); }
+    }
+  };
 })();
