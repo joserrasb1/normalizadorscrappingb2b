@@ -41,10 +41,13 @@ cookies ni credenciales). Si prefieres limitarla, en **Render → Environment**
 añade:
 
 ```
-ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com
+ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com   # <- pon aquí el dominio real de Pages
 ```
 
 ## 2. Desplegar la landing en Cloudflare Pages (gratis)
+
+> **Tu API ya está desplegada**: `https://normalizadorscrappingb2b.onrender.com`
+> (comprobado: `/health` → `{"status":"ok"}`). Usa esa URL en los campos de abajo.
 
 1. Entra en <https://dash.cloudflare.com> → **Workers & Pages → Create → Pages**
    → **Connect to Git** → elige `joserrasb1/normalizadorscrappingb2b`.
@@ -52,12 +55,12 @@ ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com
    - **Framework preset**: `None`
    - **Build command**:
      ```
-     python3 -m tools.build_static --api-base https://TU-URL.onrender.com --out dist
+     python3 -m tools.build_static --api-base https://normalizadorscrappingb2b.onrender.com --out dist
      ```
    - **Build output directory**: `dist`
    - **Environment variables** (Production):
      ```
-     API_BASE=https://TU-URL.onrender.com
+     API_BASE=https://normalizadorscrappingb2b.onrender.com
      ```
      (si lo defines como variable, puedes poner el build command sin
      `--api-base`; el script también la lee del entorno)
@@ -67,6 +70,21 @@ ALLOWED_ORIGINS=https://TU-PAGES.pages.dev,https://tu-dominio.com
    - La landing carga **instantáneamente** (sin esperar 30 s).
    - El botón **"Cargar ejemplo"** funciona (todo se procesa en el navegador).
    - El botón **"En el servidor"** también funciona (llama a la API de Render).
+
+### Notas sobre la build en Cloudflare
+
+- **No hace falta `pip install`**: `tools/build_static.py` sólo usa la
+  biblioteca estándar (no importa `fastapi` ni `openpyxl`). La build tarda
+  segundos.
+- **Versión de Python**: la imagen de build de Cloudflare Pages trae Python
+  3.13.3 por defecto; el script es compatible con 3.9+. Si Cloudflare te
+  pide instalar dependencias, añade `SKIP_DEPENDENCY_INSTALL=1` como variable
+  de entorno (no hace falta nada del `requirements.txt`).
+- El repo tiene un `.python-version` (3.11.9) para que **Render** use una
+  versión fija. Cloudflare lo ignora salvo que lo sobrescribas con
+  `PYTHON_VERSION`.
+- La build genera un fichero `_headers` con las cabeceras de seguridad (CSP
+  que permite conectar con la API). Cloudflare Pages lo aplica solo.
 
 > **Importante**: primero despliega la API en Render y **después** Pages,
 > porque la build necesita la URL de la API. Si luego cambias la URL de
