@@ -144,6 +144,62 @@ def test_la_cookie_de_sesion_es_httponly(client):
     assert "Path=/" in header
 
 
+def test_en_local_la_cookie_no_es_secure_ni_none(client, monkeypatch):
+    """En http://localhost no puede ser Secure (el navegador la descartaría)."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ENV", "dev")
+    monkeypatch.setattr(settings, "SESSION_COOKIE_SAMESITE", "")
+    client.post(
+        "/auth/register", json={"email": "ana@example.com", "password": "supersecret"}
+    )
+    r = client.post(
+        "/auth/login", json={"email": "ana@example.com", "password": "supersecret"}
+    )
+    header = r.headers.get("set-cookie", "").lower()
+    assert "samesite=lax" in header
+    assert "secure" not in header
+
+
+def test_en_produccion_la_cookie_es_secure_y_samesite_none(client, monkeypatch):
+    """pages.dev -> onrender.com es cross-site: hace falta None + Secure."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ENV", "production")
+    monkeypatch.setattr(settings, "SESSION_COOKIE_SAMESITE", "")
+    client.post(
+        "/auth/register", json={"email": "ana@example.com", "password": "supersecret"}
+    )
+    r = client.post(
+        "/auth/login", json={"email": "ana@example.com", "password": "supersecret"}
+    )
+    header = r.headers.get("set-cookie", "").lower()
+    assert "samesite=none" in header
+    assert "secure" in header
+
+
+def test_bloquea_posts_desde_origenes_no_permitidos(client):
+    r = client.post(
+        "/auth/login",
+        json={"email": "ana@example.com", "password": "supersecret"},
+        headers={"Origin": "https://sitio-malicioso.example"},
+    )
+    assert r.status_code == 403
+
+
+def test_permite_posts_desde_la_landing(client):
+    from app.core.config import settings
+
+    origin = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()][0]
+    r = client.post(
+        "/auth/login",
+        json={"email": "nadie@example.com", "password": "supersecret"},
+        headers={"Origin": origin},
+    )
+    # 401 = llegó al handler (el origen pasó el guard), no 403.
+    assert r.status_code == 401
+
+
 def test_usuarios_anonimos_no_pueden_superar_el_limite_de_filas(client):
     from app.core.limits import ANON_MAX_ROWS
 

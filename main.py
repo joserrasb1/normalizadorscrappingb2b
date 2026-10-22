@@ -109,17 +109,23 @@ app.include_router(billing_router)
 
 # --- CORS ---------------------------------------------------------------
 # La landing se sirve desde Cloudflare Pages (otro dominio) y llama a esta
-# API. Por defecto se permite cualquier origen y SIN credenciales (la API es
-# pública). En producción, si la landing usa la sesión con cookies, hay que
-# acotar los orígenes:
+# API con la cookie de sesión. Por defecto sólo se autoriza el origen de la
+# landing (APP_URL) y el propio host de la API; con una lista explícita se
+# activa allow_credentials, imprescindible para que viaje la cookie.
 #   ALLOWED_ORIGINS="https://tu-landing.pages.dev,https://tu-dominio.com"
-# Con orígenes concretos se activa allow_credentials (imprescindible para
-# que viaje la cookie de sesión) y la cookie debe ir con SameSite=None.
+# Usa ALLOWED_ORIGINS="*" sólo si quieres una API pública sin sesión
+# (el navegador no envía cookies con allow_origin="*").
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get("ALLOWED_ORIGINS", settings.ALLOWED_ORIGINS).split(",")
     if o.strip()
 ] or ["*"]
+
+# El propio servicio (Render) siempre puede llamarse a sí mismo.
+_SELF_URL = os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+if _SELF_URL and _SELF_URL not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(_SELF_URL)
+
 ALLOW_ALL_ORIGINS = "*" in ALLOWED_ORIGINS
 ALLOWED_ORIGINS_SET = {o for o in ALLOWED_ORIGINS if o != "*"}
 

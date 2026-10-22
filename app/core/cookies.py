@@ -25,7 +25,11 @@ VALID_SAMESITE = ("lax", "strict", "none")
 
 def session_cookie_kwargs() -> Dict[str, Any]:
     """Argumentos comunes para set_cookie de sesión y de cuota anónima."""
-    samesite = (settings.SESSION_COOKIE_SAMESITE or "lax").strip().lower()
+    samesite = (settings.SESSION_COOKIE_SAMESITE or "").strip().lower()
+    if not samesite:
+        # Automático: la landing y la API comparten dominio => lax (más seguro).
+        # Dominios distintos (pages.dev -> onrender.com) => none es obligatorio.
+        samesite = "none" if settings.ENV == "production" else "lax"
     if samesite not in VALID_SAMESITE:
         samesite = "lax"
 

@@ -153,24 +153,35 @@ def test_static_servido(client):
         assert len(r.text) > 100
 
 
-def test_cors_permite_otro_origen(client):
-    """La landing en Cloudflare Pages (otro dominio) debe poder llamar a la API."""
-    r = client.get("/health", headers={"Origin": "https://landing.pages.dev"})
+def test_cors_permite_el_origen_de_la_landing(client):
+    """La landing en Cloudflare Pages (otro dominio) debe poder llamar a la API.
+
+    Con la lista de orígenes explícita se habilita allow_credentials, que es lo
+    que permite enviar la cookie de sesión desde pages.dev a onrender.com.
+    """
+    from app.core.config import settings
+
+    origin = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()][0]
+    r = client.get("/health", headers={"Origin": origin})
     assert r.status_code == 200
-    assert r.headers.get("access-control-allow-origin") in ("*", "https://landing.pages.dev")
+    assert r.headers.get("access-control-allow-origin") == origin
+    assert r.headers.get("access-control-allow-credentials") == "true"
 
 
 def test_cors_preflight_de_subida(client):
+    from app.core.config import settings
+
+    origin = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()][0]
     r = client.options(
         "/api/clean",
         headers={
-            "Origin": "https://landing.pages.dev",
+            "Origin": origin,
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type",
         },
     )
     assert r.status_code in (200, 204)
-    assert r.headers.get("access-control-allow-origin") in ("*", "https://landing.pages.dev")
+    assert r.headers.get("access-control-allow-origin") == origin
     assert "POST" in r.headers.get("access-control-allow-methods", "")
 
 

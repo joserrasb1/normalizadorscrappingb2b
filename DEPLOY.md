@@ -45,27 +45,37 @@ API).
 > La primera petición puede tardar ~1 minuto: el plan gratuito arranca en frío.
 > Es normal y sólo afecta a la API (la landing va en Cloudflare).
 
-### Cookies de sesión y CORS (importante para el login y el pago)
+### Cookies de sesión y CORS (login y pago desde la landing)
 
 La landing (Cloudflare Pages) y la API (Render) están en **dominios
 distintos**. Para que la cookie de sesión viaje en las peticiones `fetch`
-cross-site hacen falta tres cosas en **Render → Environment**:
+cross-site hacen falta `SameSite=None` + `Secure` y CORS con credenciales.
 
-```
-ALLOWED_ORIGINS=https://normalizadorscrappingb2b.pages.dev
-SESSION_COOKIE_SAMESITE=none
-SESSION_COOKIE_SECURE=true
-```
+**Ya viene resuelto por defecto**: en Render la app arranca con
+`ENV=production`, autoriza el origen de `APP_URL` (la landing) y emite la
+cookie con `SameSite=None; Secure`. No tienes que configurar nada para que el
+login funcione.
 
-- `ALLOWED_ORIGINS` con la lista exacta de orígenes **activa las credenciales**
-  en el CORS (con `*` el navegador rechaza las peticiones con cookie).
-- `SESSION_COOKIE_SAMESITE=none` + `SESSION_COOKIE_SECURE=true` son
-  obligatorios para que la cookie cruce de `pages.dev` a `onrender.com`.
-- Si en algún momento sirves la landing y la API desde el **mismo origen**,
-  deja `SESSION_COOKIE_SAMESITE=lax` y `SESSION_COOKIE_SECURE=false`.
+Si cambias de dominio, ajusta en **Render → Environment**:
 
-> `SameSite=None` + `Secure` no funcionan en `http://localhost`: en local deja
-> `lax` / `false`.
+| Variable | Valor |
+|---|---|
+| `APP_URL` | URL pública de la landing |
+| `ALLOWED_ORIGINS` | `https://tu-landing,https://tu-dominio` (separados por comas) |
+| `ENV` | `production` |
+| `SESSION_COOKIE_SAMESITE` | vacío (automático) o `none` |
+| `SESSION_COOKIE_SECURE` | `true` |
+
+- Con `ALLOWED_ORIGINS=*` el navegador **no envía ni acepta cookies**: úsalo
+  sólo si quieres una API pública sin sesión.
+- Si sirves la landing y la API desde el **mismo origen**, deja
+  `SESSION_COOKIE_SAMESITE=lax` y `SESSION_COOKIE_SECURE=false`.
+- `SameSite=None` + `Secure` no funcionan en `http://localhost`: en local el
+  valor automático es `lax` / sin `Secure`.
+- **Aviso Safari/iOS**: Safari bloquea las cookies de terceros, así que el
+  login desde `pages.dev` hacia `onrender.com` puede fallar ahí. La solución
+  definitiva es servir la API bajo el mismo dominio (por ejemplo
+  `api.tudominio.com` o un proxy con Cloudflare Pages Functions).
 
 ## 2. Desplegar la landing en Cloudflare Pages (gratis) — ✅ ya hecho
 
@@ -175,19 +185,26 @@ Lo que falta es la cuenta de Stripe y las variables de entorno.
 
 En **Render → tu servicio → Environment → Add**, añade:
 
-| Variable | Valor |
-|---|---|
-| `STRIPE_SECRET_KEY` | `sk_test_...` (o `sk_live_...`) |
-| `STRIPE_PRICE_BASIC` | `price_...` del plan Basic |
-| `STRIPE_PRICE_PRO` | `price_...` del plan Pro |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_...` del paso 3.3 |
-| `APP_URL` | `https://normalizadorscrappingb2b.pages.dev` |
-| `ALLOWED_ORIGINS` | `https://normalizadorscrappingb2b.pages.dev` |
-| `SESSION_COOKIE_SAMESITE` | `none` |
-| `SESSION_COOKIE_SECURE` | `true` |
-| `ENV` | `production` |
+| Variable | Valor | ¿Obligatoria? |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | `sk_test_...` (o `sk_live_...`) | Sí |
+| `STRIPE_PRICE_BASIC` | `price_...` del plan Basic | Sí |
+| `STRIPE_PRICE_PRO` | `price_...` del plan Pro | Sí |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` del paso 3.3 | Sí |
+| `SECRET_KEY` | cadena aleatoria larga | Recomendada |
+| `DATABASE_URL` | cadena de Neon/Supabase | Recomendada (ver §8) |
+| `APP_URL` | `https://normalizadorscrappingb2b.pages.dev` | Ya es el valor por defecto |
+| `ALLOWED_ORIGINS` | `https://normalizadorscrappingb2b.pages.dev` | Ya es el valor por defecto |
+| `ENV` | `production` | Automático en Render |
+| `SESSION_COOKIE_SAMESITE` | `none` | Automático en producción |
+| `SESSION_COOKIE_SECURE` | `true` | Automático en producción |
 
 Guarda y Render redespliega automáticamente.
+
+> Genera `SECRET_KEY` con:
+> `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`
+> Si no la cambias, las sesiones son falsificables (el valor por defecto está
+> en el repositorio).
 
 ### 3.5 Probar el flujo de pago
 
