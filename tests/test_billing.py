@@ -244,6 +244,17 @@ def test_checkout_sin_price_configurado_da_400(logged_in, fake_stripe, monkeypat
     assert r.status_code == 400
 
 
+def test_checkout_con_id_de_producto_explica_que_falta_el_price(logged_in, stripe_config, fake_stripe, monkeypatch):
+    """Pegar un prod_... en STRIPE_PRICE_* es el fallo más común."""
+    monkeypatch.setattr(settings, "STRIPE_PRICE_BASIC", "prod_ABC123")
+    r = logged_in.post("/billing/checkout/basic")
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert "STRIPE_PRICE_BASIC" in detail
+    assert "price_" in detail
+    assert fake_stripe.sessions_created == []
+
+
 def test_checkout_crea_el_cliente_de_stripe_una_sola_vez(logged_in, stripe_config, fake_stripe, db):
     logged_in.post("/billing/checkout/basic")
     logged_in.post("/billing/checkout/pro")
@@ -297,6 +308,15 @@ def test_diagnose_muestra_error_si_el_precio_no_existe(logged_in, stripe_config,
     basic = r.json()["prices"]["basic"]
     assert basic["ok"] is False
     assert "No such price" in basic["error"]
+
+
+def test_diagnose_detecta_id_de_producto(logged_in, stripe_config, fake_stripe, monkeypatch):
+    monkeypatch.setattr(settings, "STRIPE_PRICE_BASIC", "prod_ABC123")
+    r = logged_in.get("/billing/diagnose")
+    assert r.status_code == 200
+    basic = r.json()["prices"]["basic"]
+    assert basic["ok"] is False
+    assert "prod_" in basic["error"]
 
 
 # --------------------------------------------------------------------------

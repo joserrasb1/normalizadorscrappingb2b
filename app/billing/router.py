@@ -153,6 +153,15 @@ async def create_checkout(plan: str, request: Request, db: Session = Depends(get
                 "o STRIPE_PRICE_PRO en el entorno."
             ),
         )
+    if price_id.startswith("prod_"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"STRIPE_PRICE_{plan.upper()} contiene un ID de producto "
+                f"({price_id}). Abre el producto en Stripe → Pricing y copia "
+                "el ID del precio, que empieza por 'price_'."
+            ),
+        )
 
     _require_stripe()
 
@@ -267,6 +276,17 @@ async def diagnose(request: Request, db: Session = Depends(get_db)):
         price_id = (price_id or "").strip()
         if not price_id:
             out["prices"][name] = {"configured": False, "ok": False}
+            continue
+        if price_id.startswith("prod_"):
+            out["prices"][name] = {
+                "configured": True,
+                "id": price_id,
+                "ok": False,
+                "error": (
+                    "Es un ID de producto (prod_...), no de precio. Abre el "
+                    "producto en Stripe → Pricing y copia el price_..."
+                ),
+            }
             continue
         try:
             price = stripe.Price.retrieve(price_id)
