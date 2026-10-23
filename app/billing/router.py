@@ -278,7 +278,7 @@ async def diagnose(request: Request, db: Session = Depends(get_db)):
             out["prices"][name] = {"configured": False, "ok": False}
             continue
         if price_id.startswith("prod_"):
-            out["prices"][name] = {
+            entry: Dict[str, Any] = {
                 "configured": True,
                 "id": price_id,
                 "ok": False,
@@ -287,6 +287,24 @@ async def diagnose(request: Request, db: Session = Depends(get_db)):
                     "producto en Stripe → Pricing y copia el price_..."
                 ),
             }
+            # Le devolvemos los precios que tiene ese producto para que no
+            # haya que buscarlos a mano en el dashboard.
+            try:
+                prices = stripe.Price.list(product=price_id, active=True, limit=20)
+                entry["available_prices"] = [
+                    {
+                        "id": price.get("id"),
+                        "type": price.get("type"),
+                        "unit_amount": price.get("unit_amount"),
+                        "currency": price.get("currency"),
+                        "interval": (price.get("recurring") or {}).get("interval"),
+                        "nickname": price.get("nickname"),
+                    }
+                    for price in (prices.get("data") or [])
+                ]
+            except Exception as exc:  # noqa: BLE001
+                entry["available_prices_error"] = _stripe_detail(exc)
+            out["prices"][name] = entry
             continue
         try:
             price = stripe.Price.retrieve(price_id)

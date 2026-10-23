@@ -89,7 +89,9 @@ class FakeStripe:
             Session=_Namespace(create=self._create_portal)
         )
         self.Webhook = _Namespace(construct_event=self._construct_event)
-        self.Price = _Namespace(retrieve=self._retrieve_price)
+        self.Price = _Namespace(
+            retrieve=self._retrieve_price, list=self._list_prices
+        )
         self.Account = _Namespace(retrieve=self._retrieve_account)
 
     def _create_customer(self, **kwargs):
@@ -121,6 +123,21 @@ class FakeStripe:
 
     def _retrieve_account(self, **kwargs):
         return {"id": "acct_test", "country": "ES", "charges_enabled": True}
+
+    def _list_prices(self, **kwargs):
+        return {
+            "data": [
+                {
+                    "id": "price_basic_test",
+                    "type": self.price_type,
+                    "active": True,
+                    "unit_amount": 2900,
+                    "currency": "eur",
+                    "recurring": {"interval": "month"},
+                    "nickname": None,
+                }
+            ]
+        }
 
     def _retrieve_session(self, session_id, **kwargs):
         if self.checkout_session is not None:
@@ -317,6 +334,7 @@ def test_diagnose_detecta_id_de_producto(logged_in, stripe_config, fake_stripe, 
     basic = r.json()["prices"]["basic"]
     assert basic["ok"] is False
     assert "prod_" in basic["error"]
+    assert basic["available_prices"][0]["id"] == "price_basic_test"
 
 
 # --------------------------------------------------------------------------
