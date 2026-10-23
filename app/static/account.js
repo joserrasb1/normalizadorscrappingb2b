@@ -17,11 +17,13 @@
     org: null,
     plan: 'free',
     pendingPlan: null,   // plan que el usuario quería contratar
+    pendingUseFile: false, // true si accedió para poder usar la herramienta
     mode: 'login',
-    busy: false
+    busy: false,
+    authSubtitleOverride: null
   };
 
-  function $(sel){ return document.querySelector(sel); }
+function $(sel){ return document.querySelector(sel); }
   function on(el, ev, fn){ if (el) el.addEventListener(ev, fn); }
   function show(el){ if (el) el.classList.remove('hidden'); }
   function hide(el){ if (el) el.classList.add('hidden'); }
@@ -115,15 +117,22 @@
     if (state.mode === 'register') show(nameRow); else hide(nameRow);
     if (submit) submit.textContent = state.mode === 'register' ? 'Crear cuenta' : 'Entrar';
     if (title) title.textContent = state.mode === 'register' ? 'Crea tu cuenta' : 'Accede a tu cuenta';
-    if (subtitle) subtitle.textContent = state.mode === 'register'
-      ? 'Empieza con el plan Free: 10 pruebas al mes, sin tarjeta.'
-      : 'Entra para contratar un plan y gestionar tu cuota.';
+    if (subtitle && !state.authSubtitleOverride) {
+      subtitle.textContent = state.mode === 'register'
+        ? 'Empieza con el plan Free: 10 pruebas al mes, sin tarjeta.'
+        : 'Entra para contratar un plan y gestionar tu cuota.';
+    }
     hide($('#auth-error'));
   }
 
-  function openAuth(mode, pendingPlan){
+  function openAuth(mode, pendingPlan, message){
     state.pendingPlan = pendingPlan || null;
+    state.authSubtitleOverride = message || null;
     setAuthMode(mode || 'login');
+    var subtitle = $('#auth-subtitle');
+    if (subtitle && message){
+      subtitle.textContent = message;
+    }
     var pwd = $('#auth-password');
     if (pwd) pwd.value = '';
     show($('#auth-modal'));
@@ -134,6 +143,7 @@
   function closeAuth(){
     hide($('#auth-modal'));
     hide($('#auth-error'));
+    state.authSubtitleOverride = null;
   }
 
   function authError(message){
@@ -178,6 +188,11 @@
             'Permite las cookies para este sitio (o prueba sin incógnito) y vuelve a entrar.');
           show($('#auth-modal'));
           return;
+        }
+        // Si el usuario accedió porque quería usar la herramienta sin sesión,
+        // le recordamos que ya puede procesar el archivo.
+        if (state.pendingUseFile){
+          toast('Ya puedes pulsar "Procesar" para analizar tu fichero.');
         }
         if (plan) startCheckout(plan);
       });

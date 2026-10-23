@@ -167,8 +167,32 @@
   }
 
   // ---------- Carga de fichero ----------
+  function requireAuthToUse(){
+    try {
+      if (window.DCB && window.DCB.account && window.DCB.account.state && window.DCB.account.state.user){
+        return true;
+      }
+    } catch(e){}
+    try {
+      const account = window.DCB && window.DCB.account;
+      if (account && account.state) account.state.pendingUseFile = true;
+      const msg = 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.';
+      if (account && account.openAuth){
+        account.openAuth('register', null, msg);
+      } else if (account && account.openAuth){
+        account.openAuth('register');
+      }
+    } catch(e){}
+    return false;
+  }
+
   function handleFile(file){
     if (!file) return;
+    if (!requireAuthToUse()){
+      cancelUse();
+      setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+      return;
+    }
     if (remainingUses() <= 0){
       cancelUse();
       showPaywall();
@@ -498,14 +522,29 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePaywall(); });
 
     // Tabs de modo
-    $('#mode-browser').addEventListener('click', () => { state.mode = 'browser'; updateModeUI(); if (state.file) processInBrowser(state.file); });
-    $('#mode-server').addEventListener('click', () => { state.mode = 'server'; updateModeUI(); if (state.file) uploadToServer(state.file); });
+    $('#mode-browser').addEventListener('click', () => {
+      if (!requireAuthToUse()){ setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error'); return; }
+      state.mode = 'browser'; updateModeUI(); if (state.file) processInBrowser(state.file);
+    });
+    $('#mode-server').addEventListener('click', () => {
+      if (!requireAuthToUse()){ setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error'); return; }
+      state.mode = 'server'; updateModeUI(); if (state.file) uploadToServer(state.file);
+    });
 
     // Dropzone
     const drop = $('#drop');
     const input = $('#file');
     if (drop && input){
-      input.addEventListener('change', () => { state.file = input.files[0]; handleFile(state.file); });
+      input.addEventListener('change', () => {
+        const f = input.files[0];
+        if (f && !requireAuthToUse()){
+          input.value = '';
+          setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+          return;
+        }
+        state.file = f;
+        if (f) handleFile(f);
+      });
       ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
         e.preventDefault(); drop.classList.add('border-indigo-400','bg-indigo-50/50');
       }));
@@ -514,10 +553,25 @@
       }));
       drop.addEventListener('drop', (e) => {
         e.preventDefault();
+        drop.classList.remove('border-indigo-400','bg-indigo-50/50');
         const f = e.dataTransfer.files[0];
-        if (f){ state.file = f; input.files = e.dataTransfer.files; handleFile(f); }
+        if (f){
+          if (!requireAuthToUse()){
+            setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+            return;
+          }
+          state.file = f;
+          try { input.files = e.dataTransfer.files; } catch(err){}
+          handleFile(f);
+        }
       });
-      drop.addEventListener('click', () => input.click());
+      drop.addEventListener('click', () => {
+        if (!requireAuthToUse()){
+          setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+          return;
+        }
+        input.click();
+      });
     }
 
     // Botón de ejemplo
