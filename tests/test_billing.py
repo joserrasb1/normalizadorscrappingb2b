@@ -67,13 +67,17 @@ class _Namespace:
 class FakeStripe:
     """Doble de prueba del módulo stripe."""
 
-    def __init__(self, checkout_session=None):
+    def __init__(self, checkout_session=None, session_error=None,
+                 price_type="recurring", price_error=None):
         self.api_key = ""
         self.customers_created = []
         self.sessions_created = []
         self.portals_created = []
         self.webhook_calls = []
         self.checkout_session = checkout_session
+        self.session_error = session_error
+        self.price_type = price_type
+        self.price_error = price_error
 
         self.Customer = _Namespace(create=self._create_customer)
         self.checkout = _Namespace(
@@ -85,18 +89,38 @@ class FakeStripe:
             Session=_Namespace(create=self._create_portal)
         )
         self.Webhook = _Namespace(construct_event=self._construct_event)
+        self.Price = _Namespace(retrieve=self._retrieve_price)
+        self.Account = _Namespace(retrieve=self._retrieve_account)
 
     def _create_customer(self, **kwargs):
         self.customers_created.append(kwargs)
         return _Namespace(id="cus_test_123")
 
     def _create_session(self, **kwargs):
+        if self.session_error is not None:
+            raise self.session_error
         self.sessions_created.append(kwargs)
         return _Namespace(id="cs_test_123", url="https://checkout.stripe.com/c/pay/cs_test_123")
 
     def _create_portal(self, **kwargs):
         self.portals_created.append(kwargs)
         return _Namespace(url="https://billing.stripe.com/p/session/test")
+
+    def _retrieve_price(self, price_id, **kwargs):
+        if self.price_error is not None:
+            raise self.price_error
+        return {
+            "id": price_id,
+            "type": self.price_type,
+            "active": True,
+            "unit_amount": 2900,
+            "currency": "eur",
+            "recurring": {"interval": "month"} if self.price_type == "recurring" else None,
+            "product": "prod_test",
+        }
+
+    def _retrieve_account(self, **kwargs):
+        return {"id": "acct_test", "country": "ES", "charges_enabled": True}
 
     def _retrieve_session(self, session_id, **kwargs):
         if self.checkout_session is not None:
@@ -226,6 +250,53 @@ def test_checkout_crea_el_cliente_de_stripe_una_sola_vez(logged_in, stripe_confi
     assert len(fake_stripe.customers_created) == 1
     org = _org(logged_in, db)
     assert org.stripe_customer_id == "cus_test_123"
+
+
+def test_checkout_error_de_stripe_da_400_con_el_motivo(logged_in, stripe_config, fake_stripe):
+    """Un fallo de Stripe no debe acabar en un 500 genérico."""
+    fake_stripe.session_error = RuntimeError(
+        "You can only use a recurring price in subscription mode"
+    )
+    r = logged_in.post("/billing/checkout/basic")
+    assert r.status_code == 400
+    assert "recurring" in r.json()["detail"]
+
+
+# --------------------------------------------------------------------------
+# Diagnóstico de la configuración de Stripe
+# --------------------------------------------------------------------------
+def test_diagnose_requiere_sesion(client, stripe_config, fake_stripe):
+    assert client.get("/billing/diagnose").status_code == 401
+
+
+def test_diagnose_precio_recurrente_correcto(logged_in, stripe_config, fake_stripe):
+    r = logged_in.get("/billing/diagnose")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["key_mode"] == "test"
+    assert body["webhook_secret"] is False
+    assert body["account"]["country"] == "ES"
+    assert body["prices"]["basic"]["ok"] is True
+    assert body["prices"]["basic"]["interval"] == "month"
+    assert body["prices"]["pro"]["ok"] is True
+
+
+def test_diagnose_detecta_precio_de_pago_unico(logged_in, stripe_config, fake_stripe):
+    fake_stripe.price_type = "one_time"
+    r = logged_in.get("/billing/diagnose")
+    assert r.status_code == 200
+    basic = r.json()["prices"]["basic"]
+    assert basic["type"] == "one_time"
+    assert basic["ok"] is False
+
+
+def test_diagnose_muestra_error_si_el_precio_no_existe(logged_in, stripe_config, fake_stripe):
+    fake_stripe.price_error = RuntimeError("No such price: 'price_basic_test'")
+    r = logged_in.get("/billing/diagnose")
+    assert r.status_code == 200
+    basic = r.json()["prices"]["basic"]
+    assert basic["ok"] is False
+    assert "No such price" in basic["error"]
 
 
 # --------------------------------------------------------------------------

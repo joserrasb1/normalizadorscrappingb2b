@@ -11,6 +11,7 @@ HTTP <-> Stripe.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Dict, Optional
 
 import stripe
@@ -27,6 +28,8 @@ from app.db import models
 from app.db.session import get_db
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+
+logger = logging.getLogger(__name__)
 
 
 class ConfirmRequest(BaseModel):
@@ -92,6 +95,43 @@ def _app_base(request: Request) -> str:
     return str(request.base_url).rstrip("/")
 
 
+def _key_mode(key: str) -> str:
+    """Modo de la clave de Stripe, sin revelarla."""
+    key = (key or "").strip()
+    if not key:
+        return "sin configurar"
+    if key.startswith("sk_test_"):
+        return "test"
+    if key.startswith("sk_live_"):
+        return "live"
+    if key.startswith("rk_test_"):
+        return "test (restringida)"
+    if key.startswith("rk_live_"):
+        return "live (restringida)"
+    return "formato desconocido"
+
+
+def _stripe_detail(exc: Exception) -> str:
+    """Mensaje corto y legible de un error de Stripe."""
+    detail = getattr(exc, "user_message", None) or str(exc)
+    detail = " ".join(str(detail).split())
+    return (detail[:300] or exc.__class__.__name__)
+
+
+def _stripe_fail(exc: Exception) -> None:
+    """Convierte un error de Stripe en un 400 con el motivo real.
+
+    Sin esto, cualquier fallo de Stripe (precio inexistente, precio de pago
+    único usado en una suscripción, clave restringida, etc.) acababa en un
+    500 genérico y el usuario no sabía qué corregir.
+    """
+    logger.exception("Stripe rechazó la operación")
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Stripe ha rechazado la operación: " + _stripe_detail(exc),
+    )
+
+
 @router.post("/checkout/{plan}")
 async def create_checkout(plan: str, request: Request, db: Session = Depends(get_db)):
     """Crea una sesión de checkout de Stripe para el plan pedido."""
@@ -117,29 +157,35 @@ async def create_checkout(plan: str, request: Request, db: Session = Depends(get
     _require_stripe()
 
     if not org.stripe_customer_id:
-        customer = stripe.Customer.create(
-            email=user.email,
-            name=org.name,
-            metadata={"org_id": org.id},
-        )
+        try:
+            customer = stripe.Customer.create(
+                email=user.email,
+                name=org.name,
+                metadata={"org_id": org.id},
+            )
+        except Exception as exc:  # noqa: BLE001 - se traduce a un 400 legible
+            _stripe_fail(exc)
         org.stripe_customer_id = customer.id
         db.commit()
 
     base = _app_base(request)
-    session = stripe.checkout.Session.create(
-        customer=org.stripe_customer_id,
-        mode="subscription",
-        line_items=[{"price": price_id, "quantity": 1}],
-        success_url=base + "/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
-        cancel_url=base + "/#precios",
-        client_reference_id=org.id,
-        metadata={"org_id": org.id, "plan": plan},
-        # La metadata de la suscripción es la que permite resolver la
-        # organización en customer.subscription.* (Stripe puede enviar ese
-        # evento ANTES que checkout.session.completed).
-        subscription_data={"metadata": {"org_id": org.id, "plan": plan}},
-        allow_promotion_codes=True,
-    )
+    try:
+        session = stripe.checkout.Session.create(
+            customer=org.stripe_customer_id,
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=base + "/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=base + "/#precios",
+            client_reference_id=org.id,
+            metadata={"org_id": org.id, "plan": plan},
+            # La metadata de la suscripción es la que permite resolver la
+            # organización en customer.subscription.* (Stripe puede enviar ese
+            # evento ANTES que checkout.session.completed).
+            subscription_data={"metadata": {"org_id": org.id, "plan": plan}},
+            allow_promotion_codes=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _stripe_fail(exc)
     return {"checkout_url": session.url, "plan": plan}
 
 
@@ -153,10 +199,13 @@ async def customer_portal(request: Request, db: Session = Depends(get_db)):
             detail="Esta organización todavía no tiene cliente en Stripe.",
         )
     _require_stripe()
-    session = stripe.billing_portal.Session.create(
-        customer=org.stripe_customer_id,
-        return_url=_app_base(request),
-    )
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=org.stripe_customer_id,
+            return_url=_app_base(request),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _stripe_fail(exc)
     return {"portal_url": session.url}
 
 
@@ -179,6 +228,70 @@ async def billing_status(request: Request, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/diagnose")
+async def diagnose(request: Request, db: Session = Depends(get_db)):
+    """Comprueba la configuración de Stripe (sin exponer claves).
+
+    Devuelve el modo de la clave y el estado de cada precio en Stripe: si
+    existe, si es recurrente y si está activo. Sirve para detectar los fallos
+    típicos (price de Live pegado en Test, precio de pago único, etc.).
+    """
+    _get_org_from_session(request, db)
+
+    key = (settings.STRIPE_SECRET_KEY or "").strip()
+    out: Dict[str, Any] = {
+        "key_mode": _key_mode(key),
+        "webhook_secret": bool((settings.STRIPE_WEBHOOK_SECRET or "").strip()),
+        "app_url": _app_base(request),
+        "account": None,
+        "prices": {},
+    }
+    if not key:
+        return out
+
+    stripe.api_key = key
+    try:
+        account = stripe.Account.retrieve()
+        out["account"] = {
+            "id": account.get("id"),
+            "country": account.get("country"),
+            "charges_enabled": account.get("charges_enabled"),
+        }
+    except Exception as exc:  # noqa: BLE001
+        out["account_error"] = _stripe_detail(exc)
+
+    for name, price_id in (
+        ("basic", settings.STRIPE_PRICE_BASIC),
+        ("pro", settings.STRIPE_PRICE_PRO),
+    ):
+        price_id = (price_id or "").strip()
+        if not price_id:
+            out["prices"][name] = {"configured": False, "ok": False}
+            continue
+        try:
+            price = stripe.Price.retrieve(price_id)
+            recurring = price.get("recurring") or {}
+            out["prices"][name] = {
+                "configured": True,
+                "id": price.get("id"),
+                "type": price.get("type"),
+                "active": price.get("active"),
+                "unit_amount": price.get("unit_amount"),
+                "currency": price.get("currency"),
+                "interval": recurring.get("interval"),
+                "ok": price.get("type") == "recurring" and bool(price.get("active")),
+            }
+        except Exception as exc:  # noqa: BLE001
+            out["prices"][name] = {
+                "configured": True,
+                "id": price_id,
+                "ok": False,
+                "error": _stripe_detail(exc),
+            }
+
+    return out
+
+
 @router.post("/confirm")
 async def confirm_checkout(
     payload: ConfirmRequest, request: Request, db: Session = Depends(get_db)
@@ -193,10 +306,14 @@ async def confirm_checkout(
 
     try:
         checkout_session = stripe.checkout.Session.retrieve(payload.session_id)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("No se pudo recuperar la sesión de checkout")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se pudo verificar la sesión de pago en Stripe.",
+            detail=(
+                "No se pudo verificar la sesión de pago en Stripe: "
+                + _stripe_detail(exc)
+            ),
         )
 
     meta = (checkout_session.get("metadata") or {})

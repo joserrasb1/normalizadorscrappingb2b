@@ -71,7 +71,7 @@
         : 'bg-slate-900 text-white');
     show(el);
     window.clearTimeout(toast._t);
-    toast._t = window.setTimeout(function(){ hide(el); }, 4000);
+    toast._t = window.setTimeout(function(){ hide(el); }, kind === 'error' ? 8000 : 4000);
   }
 
   function renderAccount(){
@@ -85,6 +85,11 @@
       if (email) email.textContent = state.user.email;
       if (plan) plan.textContent = 'Plan ' + planLabel(state.plan) +
         (state.org && state.org.name ? ' · ' + state.org.name : '');
+      // En plan Free no hay suscripción que gestionar: el botón lleva a los
+      // planes en lugar de abrir el portal de Stripe (que no permite comprar).
+      var portalBtn = $('#account-portal');
+      if (portalBtn) portalBtn.textContent = (!state.plan || state.plan === 'free')
+        ? 'Ver planes' : 'Gestionar suscripción';
     } else {
       if (btn) btn.textContent = 'Acceder';
       hide(panel);
@@ -245,13 +250,24 @@
       }
       var detail = (res.data && res.data.detail) || 'No se pudo iniciar el pago.';
       if (typeof detail !== 'string') detail = 'No se pudo iniciar el pago.';
+      // Mostrar el motivo real (p. ej. el error concreto de Stripe) en lugar
+      // de abrir el correo automáticamente: el 90% de las veces se arregla
+      // corrigiendo la configuración, no escribiendo a soporte.
       toast(detail, 'error');
-      mailtoFallback(plan, 'El pago automático no está disponible: ' + detail);
     });
   }
 
   function openPortal(){
     if (!state.user){ openAuth('login', null); return; }
+    // Sin plan de pago no hay nada que gestionar: llevamos a los precios.
+    if (!state.plan || state.plan === 'free'){
+      hide($('#account-panel'));
+      var pricing = document.getElementById('precios');
+      if (pricing && pricing.scrollIntoView){
+        pricing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
     request('/billing/portal').then(function(res){
       if (res.ok && res.data && res.data.portal_url){
         window.location.href = res.data.portal_url;

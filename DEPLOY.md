@@ -242,6 +242,14 @@ Guarda y Render redespliega automáticamente.
 6. Cancela la suscripción desde el portal y comprueba que el plan vuelve a
    `free`.
 
+> **Si el checkout falla**, entra con la sesión iniciada en
+> <https://normalizadorscrappingb2b.pages.dev/billing/diagnose>. Devuelve el
+> modo de la clave (`test`/`live`) y, para cada precio, si existe en Stripe, si
+> es recurrente (`type: recurring`) y si está activo. Los dos fallos más
+> habituales son pegar un `price_...` de **live** teniendo clave de **test** y
+> crear el precio como **pago único** en lugar de **recurrente**. El error
+> concreto que devuelve Stripe se muestra ahora en el aviso de la landing.
+
 ### 3.6 Antes de pasar a producción (live)
 
 - [ ] Cambia las claves `sk_test_...` → `sk_live_...`.
