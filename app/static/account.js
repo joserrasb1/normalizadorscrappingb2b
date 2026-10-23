@@ -165,7 +165,15 @@
       closeAuth();
       var plan = state.pendingPlan;
       state.pendingPlan = null;
-      refreshSession().then(function(){
+      refreshSession().then(function(user){
+        if (!user){
+          // El servidor aceptó el alta/login pero el navegador no conservó la
+          // sesión (cookies de terceros bloqueadas, modo incógnito, etc.).
+          authError('Tu cuenta es correcta, pero el navegador no ha guardado la sesión. ' +
+            'Permite las cookies para este sitio (o prueba sin incógnito) y vuelve a entrar.');
+          show($('#auth-modal'));
+          return;
+        }
         if (plan) startCheckout(plan);
       });
     });

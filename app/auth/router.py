@@ -11,10 +11,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register")
-async def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
-    """Crea la cuenta y su organización inicial (plan free)."""
+async def register(
+    user_data: schemas.UserCreate, response: Response, db: Session = Depends(get_db)
+):
+    """Crea la cuenta, su organización inicial y deja la sesión iniciada."""
     user = service.create_user(db, user_data)
     org = service.ensure_default_organization(db, user)
+    set_session_cookie(response, create_session_token(user.id))
     return {
         "id": user.id,
         "email": user.email,

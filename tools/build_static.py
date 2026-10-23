@@ -19,8 +19,10 @@ Salida:
 Notas:
 - Cloudflare Pages usa "None" como framework preset y este comando como
   build command; el directorio de salida es `dist`.
-- Si no se pasa `--api-base`, la landing se sirve en el mismo origen que la
-  API (despliegue monolítico en Render, sin Cloudflare).
+- En Cloudflare Pages **no se pasa `--api-base`**: la landing usa rutas
+  relativas y `functions/_middleware.js` las reenvía a la API (mismo origen,
+  cookie de sesión de primera parte). `--api-base` queda para el despliegue
+  monolítico en Render, donde no hay proxy.
 """
 
 from __future__ import annotations

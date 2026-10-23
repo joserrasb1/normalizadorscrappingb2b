@@ -78,6 +78,29 @@ def test_register_rechaza_contrasena_corta(client):
     assert r.status_code == 400
 
 
+def test_register_inicia_sesion_automaticamente(client):
+    """Tras crear la cuenta el usuario ya está dentro (sin segundo login)."""
+    r = client.post(
+        "/auth/register", json={"email": "ana@example.com", "password": "supersecret"}
+    )
+    assert r.status_code == 200, r.text
+    assert "dcb_session" in r.cookies
+
+    me = client.get("/auth/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["email"] == "ana@example.com"
+
+
+def test_register_devuelve_cookie_httponly(client):
+    r = client.post(
+        "/auth/register", json={"email": "ana@example.com", "password": "supersecret"}
+    )
+    header = r.headers.get("set-cookie", "")
+    assert "dcb_session=" in header
+    assert "HttpOnly" in header
+    assert "Path=/" in header
+
+
 def test_login_devuelve_cookie_de_sesion(client):
     client.post(
         "/auth/register", json={"email": "ana@example.com", "password": "supersecret"}

@@ -60,20 +60,27 @@ API Python (XLSX y uso por API) sí. Por eso el despliegue recommended es:
 
 ```
 Cloudflare Pages (gratis, sin límite de tráfico, nunca duerme)
-        │  fetch + CORS
+        │  fetch same-origin (proxy /api, /auth, /billing)
         ▼
 Render Free (gratis, API Python; duerme a los 15 min)
 ```
 
+El navegador habla siempre con el dominio de la landing:
+`functions/_middleware.js` (Cloudflare Pages Functions) reenvía `/api/*`,
+`/auth/*` y `/billing/*` a la API. Así la cookie de sesión es de **primera
+parte** y funciona también en Safari, sin CORS ni `SameSite=None`.
+
 El paso a paso está en **[DEPLOY.md](DEPLOY.md)**. En resumen:
 
 ```bash
-# Build del sitio estático para Cloudflare Pages
-python3 -m tools.build_static --api-base https://TU-API.onrender.com --out dist
+# Build del sitio estático para Cloudflare Pages (sin --api-base)
+python3 -m tools.build_static --out dist
 ```
 
-La URL de la API se inyecta en la landing (`<meta name="api-base">`) y la API
-acepta el origen de la landing vía CORS (configurable con `ALLOWED_ORIGINS`).
+El proxy toma la URL de la API de la variable `API_ORIGIN` del proyecto de
+Pages (por defecto, `https://normalizadorscrappingb2b.onrender.com`). La API
+sigue aceptando llamadas directas con CORS (`ALLOWED_ORIGINS`) para
+integraciones.
 
 
 ## 3. API
@@ -285,6 +292,11 @@ recibe `column_types` de la detección y los overrides del usuario.
 
 ## 11. Límites conocidos
 
+- En la landing desplegada **no se puede volver a pasar `--api-base`** (ni
+  definir `API_BASE` en Pages): si la API queda en otro dominio, la cookie de
+  sesión pasa a ser de terceros y los navegadores la bloquean (el login vuelve
+  al formulario en bucle). Ahí funciona el proxy same-origin
+  `functions/_middleware.js`.
 - La detección de columnas es heurística: siempre conviene revisar la
   previsualización (por eso el desplegable por columna).
 - El modo navegador no **lee** XLSX (sí CSV/TSV/TXT); para XLSX hay que usar el

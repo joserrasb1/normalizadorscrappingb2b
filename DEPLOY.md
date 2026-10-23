@@ -20,11 +20,18 @@ API).
 ┌─────────────────────────────┐        ┌──────────────────────────┐
 │  Cloudflare Pages (gratis)  │  fetch │  Render Free (gratis)    │
 │  landing + modo navegador   │ ─────► │  /api/clean, /api/detect │
-│  → el fichero NO sale       │  CORS  │  /api/download/...       │
+│  → el fichero NO sale       │ same-  │  /api/download/...       │
+│  + proxy /api,/auth,/billing│ origin │  /auth/*, /billing/*     │
 └─────────────────────────────┘        └──────────────────────────┘
-   100 % en el cliente                  sólo XLSX / API
+   100 % en el cliente                  sólo XLSX / API / cuenta
    (instantáneo, sin cold start)        (duerme a los 15 min)
 ```
+
+El navegador **nunca llama a `onrender.com`**: `functions/_middleware.js`
+(Cloudflare Pages Functions) reenvía `/api/*`, `/auth/*` y `/billing/*` a la
+API. Así todo es **mismo origen** y la cookie de sesión es de primera parte
+(Safari y Chrome no la bloquean). La API sigue accesible directamente por su
+URL para integraciones con API key.
 
 ---
 
@@ -45,18 +52,28 @@ API).
 > La primera petición puede tardar ~1 minuto: el plan gratuito arranca en frío.
 > Es normal y sólo afecta a la API (la landing va en Cloudflare).
 
-### Cookies de sesión y CORS (login y pago desde la landing)
+### Cookies de sesión (login y pago desde la landing)
 
-La landing (Cloudflare Pages) y la API (Render) están en **dominios
-distintos**. Para que la cookie de sesión viaje en las peticiones `fetch`
-cross-site hacen falta `SameSite=None` + `Secure` y CORS con credenciales.
+La landing y la API van en **dominios distintos** (`pages.dev` /
+`onrender.com`). Si el navegador llamase a la API directamente, la cookie de
+sesión sería de **terceros** y Safari (o Chrome con bloqueo de cookies) la
+descartaría: el login devolvería 200 pero la sesión se perdería y el
+formulario volvería a aparecer.
 
-**Ya viene resuelto por defecto**: en Render la app arranca con
-`ENV=production`, autoriza el origen de `APP_URL` (la landing) y emite la
-cookie con `SameSite=None; Secure`. No tienes que configurar nada para que el
-login funcione.
+**Por eso no llama directamente**: `functions/_middleware.js` hace de proxy
+same-origin y la cookie es de primera parte. No hay que configurar nada para
+que el login funcione.
 
-Si cambias de dominio, ajusta en **Render → Environment**:
+El proxy usa, por este orden:
+
+1. La variable `API_ORIGIN` del proyecto de Cloudflare Pages.
+2. Si no existe, `https://normalizadorscrappingb2b.onrender.com`.
+
+Si cambias la URL de la API, actualiza `API_ORIGIN` en **Pages → Settings →
+Environment variables** y vuelve a desplegar.
+
+La API mantiene CORS con credenciales por si algún cliente la llama
+directamente. Si cambias de dominio, ajusta en **Render → Environment**:
 
 | Variable | Valor |
 |---|---|
@@ -68,14 +85,10 @@ Si cambias de dominio, ajusta en **Render → Environment**:
 
 - Con `ALLOWED_ORIGINS=*` el navegador **no envía ni acepta cookies**: úsalo
   sólo si quieres una API pública sin sesión.
-- Si sirves la landing y la API desde el **mismo origen**, deja
-  `SESSION_COOKIE_SAMESITE=lax` y `SESSION_COOKIE_SECURE=false`.
 - `SameSite=None` + `Secure` no funcionan en `http://localhost`: en local el
-  valor automático es `lax` / sin `Secure`.
-- **Aviso Safari/iOS**: Safari bloquea las cookies de terceros, así que el
-  login desde `pages.dev` hacia `onrender.com` puede fallar ahí. La solución
-  definitiva es servir la API bajo el mismo dominio (por ejemplo
-  `api.tudominio.com` o un proxy con Cloudflare Pages Functions).
+  valor automático es `lax` / sin `Secure`. Si sirves landing y API en el
+  mismo origen, deja `SESSION_COOKIE_SAMESITE=lax` y
+  `SESSION_COOKIE_SECURE=false`.
 
 ## 2. Desplegar la landing en Cloudflare Pages (gratis) — ✅ ya hecho
 
@@ -88,21 +101,26 @@ Si cambias de dominio, ajusta en **Render → Environment**:
    - **Framework preset**: `None`
    - **Build command**:
      ```
-     python3 -m tools.build_static --api-base https://normalizadorscrappingb2b.onrender.com --out dist
+     python3 -m tools.build_static --out dist
      ```
+     **Sin `--api-base`**: la landing usa rutas relativas y el proxy
+     same-origin (`functions/_middleware.js`) las manda a la API.
    - **Build output directory**: `dist`
    - **Environment variables** (Production):
      ```
-     API_BASE=https://normalizadorscrappingb2b.onrender.com
+     API_ORIGIN=https://normalizadorscrappingb2b.onrender.com
      ```
-     (si lo defines como variable, puedes poner el build command sin
-     `--api-base`; el script también la lee del entorno)
+     Es la URL a la que el proxy reenvía `/api`, `/auth` y `/billing`.
+     **No definas `API_BASE`**: el script de build lo lee del entorno y
+     volvería a poner la API en otro dominio (rompería la sesión).
 3. **Save and Deploy**. En unos segundos tendrás
    `https://normalizadorscrappingb2b.pages.dev`.
 4. Comprueba:
    - La landing carga **instantáneamente** (sin esperar 30 s).
    - El botón **"Cargar ejemplo"** funciona (todo se procesa en el navegador).
    - El botón **"En el servidor"** también funciona (llama a la API de Render).
+   - El proxy responde: `https://normalizadorscrappingb2b.pages.dev/health`
+     debe devolver `{"status":"ok"}` (misma respuesta que la API).
 
 ### Notas sobre la build en Cloudflare
 
@@ -118,6 +136,11 @@ Si cambias de dominio, ajusta en **Render → Environment**:
   `PYTHON_VERSION`.
 - La build genera un fichero `_headers` con las cabeceras de seguridad (CSP
   que permite conectar con la API). Cloudflare Pages lo aplica solo.
+- **`functions/_middleware.js`** es el proxy same-origin. Cloudflare Pages lo
+  detecta automáticamente en la raíz del repo (no va dentro de `dist`) y lo
+  despliega con cada build. No hace falta configurar nada más.
+- El proxy reenvía la cabecera `Cookie`, así que la sesión funciona sin
+  `SameSite=None` y sin CORS.
 - La build genera también un `404.html`. **Es importante**: sin él, Cloudflare
   Pages asume que el sitio es una SPA y devuelve 200 con la landing en
   cualquier ruta inexistente (soft 404, malo para SEO).
@@ -125,9 +148,9 @@ Si cambias de dominio, ajusta en **Render → Environment**:
   muestra cada build; el botón para relanzar la última es **Retry deployment**
   (el "Create deployment" solo aparece en la vista de un despliegue concreto).
 
-> **Importante**: primero despliega la API en Render y **después** Pages,
-> porque la build necesita la URL de la API. Si luego cambias la URL de
-> Render, vuelve a desplegar Pages.
+> **Importante**: la landing ya no necesita la URL de la API en la build. Si
+> cambias la URL de Render, actualiza `API_ORIGIN` en Pages y vuelve a
+> desplegar.
 
 ### Dominio propio (opcional)
 

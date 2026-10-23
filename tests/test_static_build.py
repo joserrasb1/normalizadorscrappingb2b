@@ -20,6 +20,7 @@ import pytest
 from tools.build_static import build
 
 API = "https://mi-api.onrender.com"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_build_genera_el_sitio_completo(tmp_path):
@@ -53,6 +54,41 @@ def test_build_sin_api_deja_el_mismo_origen(tmp_path):
     build(str(out), None)
     html = (out / "index.html").read_text(encoding="utf-8")
     assert '<meta name="api-base" content="">' in html
+
+
+def test_build_mismo_origen_no_abre_connect_src(tmp_path):
+    """Con el proxy de Pages no hace falta permitir otro origen en la CSP."""
+    out = tmp_path / "dist"
+    build(str(out), None)
+    headers = (out / "_headers").read_text(encoding="utf-8")
+    assert "connect-src 'self';" in headers
+
+
+def test_el_proxy_de_pages_reenvia_las_rutas_de_la_api():
+    """
+    `functions/_middleware.js` convierte las llamadas a la API en same-origin.
+
+    Sin él la cookie de sesión es de terceros (pages.dev -> onrender.com) y
+    Safari/Chrome la descartan: el login responde 200 pero la sesión se
+    pierde y el formulario vuelve a aparecer.
+    """
+    middleware = os.path.join(ROOT, "functions", "_middleware.js")
+    assert os.path.exists(middleware), "falta functions/_middleware.js"
+    with open(middleware, encoding="utf-8") as fh:
+        source = fh.read()
+
+    for prefijo in ("/api/", "/auth/", "/billing/"):
+        assert prefijo in source, prefijo
+    assert "onrender.com" in source
+    assert "set-cookie" in source.lower()
+    assert "API_ORIGIN" in source
+
+
+def test_el_readme_documenta_el_proxy() -> None:  # pragma: no cover - doc
+    readme = os.path.join(ROOT, "README.md")
+    with open(readme, encoding="utf-8") as fh:
+        source = fh.read()
+    assert "_middleware.js" in source or "proxy" in source.lower()
 
 
 def test_build_genera_pagina_404(tmp_path):
