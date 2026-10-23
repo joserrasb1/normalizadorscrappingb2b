@@ -293,6 +293,39 @@ def test_checkout_error_de_stripe_da_400_con_el_motivo(logged_in, stripe_config,
 # --------------------------------------------------------------------------
 # Diagnóstico de la configuración de Stripe
 # --------------------------------------------------------------------------
+def test_read_acepta_dicts_y_objetos_tipados_del_sdk():
+    """El SDK >= 12 devuelve objetos sin .get(); _read debe soportar ambos."""
+    from app.billing.router import _read
+
+    assert _read({"type": "recurring"}, "type") == "recurring"
+
+    class Obj:
+        def to_dict(self):
+            return {"type": "recurring", "recurring": {"interval": "month"}}
+
+    obj = Obj()
+    assert _read(obj, "type") == "recurring"
+    assert _read(_read(obj, "recurring"), "interval") == "month"
+
+
+def test_read_con_objeto_real_de_stripe():
+    from stripe import Price
+
+    from app.billing.router import _read
+
+    price = Price.construct_from(
+        {
+            "id": "price_1",
+            "type": "recurring",
+            "active": True,
+            "recurring": {"interval": "month"},
+        },
+        "sk_test_x",
+    )
+    assert _read(price, "type") == "recurring"
+    assert _read(_read(price, "recurring"), "interval") == "month"
+
+
 def test_diagnose_requiere_sesion(client, stripe_config, fake_stripe):
     assert client.get("/billing/diagnose").status_code == 401
 

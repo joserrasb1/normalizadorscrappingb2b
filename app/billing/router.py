@@ -111,6 +111,29 @@ def _key_mode(key: str) -> str:
     return "formato desconocido"
 
 
+def _as_dict(obj: Any) -> Any:
+    """Convierte un recurso del SDK de Stripe en dict plano.
+
+    Desde la v12 el SDK devuelve objetos tipados que ya no aceptan `.get()`;
+    `to_dict()` los convierte de forma recursiva.
+    """
+    if isinstance(obj, dict):
+        return obj
+    to_dict = getattr(obj, "to_dict", None)
+    if callable(to_dict):
+        return to_dict()
+    return obj
+
+
+def _read(obj: Any, key: str, default: Any = None) -> Any:
+    """Lee un campo tanto de un dict como de un recurso del SDK."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    data = _as_dict(obj)
+    value = data.get(key, default) if isinstance(data, dict) else getattr(obj, key, default)
+    return default if value is None else value
+
+
 def _stripe_detail(exc: Exception) -> str:
     """Mensaje corto y legible de un error de Stripe."""
     detail = getattr(exc, "user_message", None) or str(exc)
@@ -262,9 +285,9 @@ async def diagnose(request: Request, db: Session = Depends(get_db)):
     try:
         account = stripe.Account.retrieve()
         out["account"] = {
-            "id": account.get("id"),
-            "country": account.get("country"),
-            "charges_enabled": account.get("charges_enabled"),
+            "id": _read(account, "id"),
+            "country": _read(account, "country"),
+            "charges_enabled": _read(account, "charges_enabled"),
         }
     except Exception as exc:  # noqa: BLE001
         out["account_error"] = _stripe_detail(exc)
@@ -293,14 +316,14 @@ async def diagnose(request: Request, db: Session = Depends(get_db)):
                 prices = stripe.Price.list(product=price_id, active=True, limit=20)
                 entry["available_prices"] = [
                     {
-                        "id": price.get("id"),
-                        "type": price.get("type"),
-                        "unit_amount": price.get("unit_amount"),
-                        "currency": price.get("currency"),
-                        "interval": (price.get("recurring") or {}).get("interval"),
-                        "nickname": price.get("nickname"),
+                        "id": _read(price, "id"),
+                        "type": _read(price, "type"),
+                        "unit_amount": _read(price, "unit_amount"),
+                        "currency": _read(price, "currency"),
+                        "interval": _read(_read(price, "recurring") or {}, "interval"),
+                        "nickname": _read(price, "nickname"),
                     }
-                    for price in (prices.get("data") or [])
+                    for price in (_read(prices, "data") or [])
                 ]
             except Exception as exc:  # noqa: BLE001
                 entry["available_prices_error"] = _stripe_detail(exc)
@@ -308,16 +331,16 @@ async def diagnose(request: Request, db: Session = Depends(get_db)):
             continue
         try:
             price = stripe.Price.retrieve(price_id)
-            recurring = price.get("recurring") or {}
+            recurring = _read(price, "recurring") or {}
             out["prices"][name] = {
                 "configured": True,
-                "id": price.get("id"),
-                "type": price.get("type"),
-                "active": price.get("active"),
-                "unit_amount": price.get("unit_amount"),
-                "currency": price.get("currency"),
-                "interval": recurring.get("interval"),
-                "ok": price.get("type") == "recurring" and bool(price.get("active")),
+                "id": _read(price, "id"),
+                "type": _read(price, "type"),
+                "active": _read(price, "active"),
+                "unit_amount": _read(price, "unit_amount"),
+                "currency": _read(price, "currency"),
+                "interval": _read(recurring, "interval"),
+                "ok": _read(price, "type") == "recurring" and bool(_read(price, "active")),
             }
         except Exception as exc:  # noqa: BLE001
             out["prices"][name] = {
@@ -354,14 +377,14 @@ async def confirm_checkout(
             ),
         )
 
-    meta = (checkout_session.get("metadata") or {})
+    meta = _read(checkout_session, "metadata") or {}
     if meta.get("org_id") != org.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Esta sesión de pago no pertenece a tu organización.",
         )
 
-    payment_status = checkout_session.get("payment_status")
+    payment_status = _read(checkout_session, "payment_status")
     if payment_status not in ("paid", "no_payment_required"):
         return {"status": payment_status, "plan": org.plan, "action": "pending"}
 
@@ -416,7 +439,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Payload JSON inválido."
             )
 
-    result = service.handle_event(db, event)
+    result = service.handle_event(db, _as_dict(event))
     return {"received": True, **result}
 
 
