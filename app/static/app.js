@@ -487,6 +487,30 @@
 
 
 
+  // Evitar que el navegador abra el archivo fuera del dropzone
+  try {
+    window.addEventListener('dragover', function(e){
+      if (e.dataTransfer && e.dataTransfer.types){
+        const types = Array.from(e.dataTransfer.types);
+        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    }, { passive: false, capture: true });
+    window.addEventListener('drop', function(e){
+      const drop = document.getElementById('drop');
+      if (drop && drop.contains(e.target)) return;
+      if (e.dataTransfer && e.dataTransfer.types){
+        const types = Array.from(e.dataTransfer.types);
+        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    }, { passive: false, capture: true });
+  } catch(err){}
+
   // ---------- Init ----------
   function init(){
     // Enlaces del pie a la API (/docs y /health): deben apuntar a la API,
@@ -538,7 +562,18 @@
         if (f){
           if (!requireAuthToUse()){
             input.value = '';
+            try {
+              if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
+                window.DCB.account.openAuth('register', 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.');
+                return;
+              }
+            } catch (err) {}
             setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+            return;
+          }
+          if (remainingUses() <= 0) {
+            input.value = '';
+            showPaywall();
             return;
           }
           state.file = f;
@@ -571,7 +606,17 @@
         const f = dt && dt.files && dt.files[0];
         if (f){
           if (!requireAuthToUse()){
+            try {
+              if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
+                window.DCB.account.openAuth('register', 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.');
+                return;
+              }
+            } catch (err) {}
             setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+            return;
+          }
+          if (remainingUses() <= 0) {
+            showPaywall();
             return;
           }
           state.file = f;
@@ -591,6 +636,12 @@
           if (!requireAuthToUse()){
             e.preventDefault();
             input.value = '';
+            try {
+              if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
+                window.DCB.account.openAuth('register', 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.');
+                return;
+              }
+            } catch (err) {}
             setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
             return;
           }
@@ -599,6 +650,12 @@
         if (!requireAuthToUse()){
           e.preventDefault();
           e.stopPropagation();
+          try {
+            if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
+              window.DCB.account.openAuth('register', 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.');
+              return;
+            }
+          } catch (err) {}
           setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
           return;
         }
