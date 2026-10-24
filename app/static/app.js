@@ -485,28 +485,7 @@
     if (hint) hint.textContent = 'El fichero se procesa en memoria en el servidor y se descarta al terminar.';
   }
 
-  // Evitar que el navegador abra el archivo si se suelta fuera del dropzone
-  try {
-    window.addEventListener('dragover', function(e){
-      if (e.dataTransfer && e.dataTransfer.types){
-        const types = Array.from(e.dataTransfer.types);
-        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }
-    }, { passive: false, capture: true });
-    window.addEventListener('drop', function(e){
-      if (e.dataTransfer && e.dataTransfer.types){
-        const types = Array.from(e.dataTransfer.types);
-        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
-          e.preventDefault();
-          e.stopPropagation();
-          // No abrir modal aquí, lo maneja el dropzone
-        }
-      }
-    }, { passive: false, capture: true });
-  } catch(err){}
+
 
   // ---------- Init ----------
   function init(){
@@ -611,20 +590,22 @@
         if (e.target === input) {
           if (!requireAuthToUse()){
             e.preventDefault();
+            input.value = '';
             setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
             return;
           }
           return;
         }
-        e.preventDefault();
-        e.stopPropagation();
         if (!requireAuthToUse()){
+          e.preventDefault();
+          e.stopPropagation();
           setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
           return;
         }
         if (input) {
-          input.removeAttribute('disabled');
-          input.click();
+          e.preventDefault();
+          e.stopPropagation();
+          try { input.click(); } catch(err){}
         }
       });
     }
