@@ -98,46 +98,55 @@
     }
   }
 
+  let usageState = {
+    remaining: FREE_LIMIT,
+    limit: FREE_LIMIT,
+    used: 0,
+    hasSession: false
+  };
+
   function remainingUses(){
-    return Math.max(0, FREE_LIMIT - usesCount());
+    if (usageState.hasSession){
+      return Math.max(0, usageState.remaining);
+    }
+    return FREE_LIMIT;
   }
 
-  function setUses(n){
-    memoryUses = Math.max(0, Math.min(FREE_LIMIT, n));
-    try { window.localStorage.setItem(USAGE_KEY, String(memoryUses)); } catch (e) { /* modo privado */ }
+  function fetchUsage(){
+    // Si hay sesión iniciada, usar las cuotas del usuario/organización
+    if (window.DCB && window.DCB.account && window.DCB.account.state && window.DCB.account.state.user){
+      return fetch(API_BASE + '/auth/me', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && data.usage && typeof data.usage.rows_used === 'number' && typeof data.usage.rows_limit === 'number'){
+            usageState.hasSession = true;
+            usageState.used = data.usage.rows_used;
+            usageState.limit = data.usage.rows_limit;
+            usageState.remaining = Math.max(0, usageState.limit - usageState.used);
+          } else if (data && data.user){
+            // Usuario logueado pero sin registro de usage aún - usar límites del plan
+            usageState.hasSession = true;
+            usageState.used = 0;
+            usageState.limit = data.limits && data.limits.rows_month ? data.limits.rows_month : FREE_LIMIT;
+            usageState.remaining = usageState.limit;
+          } else {
+            usageState.hasSession = false;
+            usageState.remaining = FREE_LIMIT;
+          }
+          renderUsage();
+          return usageState;
+        })
+        .catch(() => {
+          usageState.hasSession = false;
+          usageState.remaining = FREE_LIMIT;
+          renderUsage();
+          return usageState;
+        });
+    }
+    usageState.hasSession = false;
+    usageState.remaining = FREE_LIMIT;
     renderUsage();
-  }
-
-  function finishUse(){
-    if (!state.pendingUse) return;
-    state.pendingUse = false;
-    setUses(usesCount() + 1);
-  }
-
-  function cancelUse(){
-    state.pendingUse = false;
-  }
-
-  function renderUsage(){
-    const left = remainingUses();
-
-    const badge = $('#usage-badge');
-    if (badge){
-      badge.textContent = left > 0 ? left + '/' + FREE_LIMIT + ' gratis' : 'Sin pruebas';
-      badge.className = 'rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ' +
-        (left > 0
-          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-          : 'bg-amber-50 text-amber-700 ring-amber-200');
-    }
-
-    const line = $('#usage-line');
-    if (line){
-      line.innerHTML = left > 0
-        ? 'Te quedan <strong class="font-semibold text-slate-700">' + left + ' de ' + FREE_LIMIT +
-          '</strong> pruebas gratis · el ejemplo no consume usos'
-        : '<strong class="font-semibold text-amber-700">Has usado tus ' + FREE_LIMIT +
-          ' pruebas gratis</strong> · <a href="#precios" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">ver planes</a>';
-    }
+    return Promise.resolve(usageState);
   }
 
   function showPaywall(){
