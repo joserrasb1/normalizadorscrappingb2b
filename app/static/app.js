@@ -485,6 +485,20 @@
     if (hint) hint.textContent = 'El fichero se procesa en memoria en el servidor y se descarta al terminar.';
   }
 
+  // Evitar que el navegador abra el archivo si se suelta fuera del dropzone
+  try {
+    window.addEventListener('dragover', function(e){
+      if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')){
+        e.preventDefault();
+      }
+    }, { passive: false });
+    window.addEventListener('drop', function(e){
+      if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')){
+        e.preventDefault();
+      }
+    }, { passive: false });
+  } catch(err){}
+
   // ---------- Init ----------
   function init(){
     // Enlaces del pie a la API (/docs y /health): deben apuntar a la API,
@@ -579,13 +593,24 @@
         }
       });
       drop.addEventListener('click', (e) => {
+        if (e.target === input) {
+          if (!requireAuthToUse()){
+            e.preventDefault();
+            setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+            return;
+          }
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         if (!requireAuthToUse()){
           setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
           return;
         }
-        if (input) input.click();
+        if (input) {
+          input.removeAttribute('disabled');
+          input.click();
+        }
       });
     }
 
