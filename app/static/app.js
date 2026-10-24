@@ -613,30 +613,53 @@
     // Botón de ejemplo
     const demoBtn = $('#load-demo');
     if (demoBtn){
+      demoBtn.onclick = null;
       demoBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!requireAuthToUse()){
+        e.stopImmediatePropagation();
+
+        // Comprobar auth y abrir modal si no hay sesión
+        if (!requireAuthToUse()) {
+          try {
+            if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
+              window.DCB.account.openAuth('register', 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.');
+              return;
+            }
+          } catch (err) {}
           setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
           return;
         }
+
+        if (remainingUses() <= 0) {
+          showPaywall();
+          return;
+        }
+
         try {
           const res = await fetch('/static/demo.csv', { cache: 'no-store' });
+          if (!res.ok) throw new Error('fetch failed');
           const text = await res.text();
-          const parsed = window.CSV_UTILS.parse(text);
-          cancelUse(); // el ejemplo es una demostración: no consume pruebas
-          state.headers = parsed.headers;
-          state.rows = parsed.rows;
-          state.fileName = 'ejemplo_prospectos.csv';
-          state.columns = window.DATA_CLEANER.detectColumns(state.headers, state.rows);
-          renderColumns();
-          state.file = new File([text], 'ejemplo_prospectos.csv', { type: 'text/csv' });
-          state.pendingUse = false;
-          uploadToServer(state.file);
-          setStatus('Ejemplo cargado (datos ficticios).', 'ok');
-          $('#results').scrollIntoView({behavior:'smooth', block:'start'});
-        } catch (e){ setStatus('No se pudo cargar el ejemplo.', 'error'); }
-      });
+          if (!text || !text.trim()) throw new Error('empty');
+
+          // Cargar como fichero para subirlo directamente al servidor
+          const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+          const file = new File([blob], 'ejemplo_prospectos.csv', { type: 'text/csv' });
+
+          state.file = file;
+          state.pendingUse = true;
+          state.mode = 'server';
+
+          setStatus('Cargando ejemplo...', 'ok');
+          uploadToServer(file);
+
+          const resultsEl = $('#results');
+          if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (err) {
+          console.error(err);
+          setStatus('No se pudo cargar el ejemplo.', 'error');
+        }
+      }, { capture: true });
     }
 
     // Opciones -> reprocesar
