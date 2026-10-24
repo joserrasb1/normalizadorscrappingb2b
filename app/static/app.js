@@ -568,16 +568,22 @@
         }
         input.value = '';
       });
-      ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
+      drop.addEventListener('dragenter', (e) => {
         e.preventDefault();
         e.stopPropagation();
         drop.classList.add('border-indigo-400','bg-indigo-50/50');
-      }));
-      ['dragleave'].forEach(ev => drop.addEventListener(ev, (e) => {
+      }, { passive: false });
+      drop.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        drop.classList.add('border-indigo-400','bg-indigo-50/50');
+      }, { passive: false });
+      drop.addEventListener('dragleave', (e) => {
         e.preventDefault();
         e.stopPropagation();
         drop.classList.remove('border-indigo-400','bg-indigo-50/50');
-      }));
+      }, { passive: false });
       drop.addEventListener('drop', (e) => {
         e.preventDefault();
         e.stopPropagation();
