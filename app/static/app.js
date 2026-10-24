@@ -216,17 +216,8 @@
       return;
     }
     state.pendingUse = true;
-    const name = (file.name || '').toLowerCase();
-    if (/\.(xlsx|xlsm)$/.test(name)){
-      setStatus('El formato XLSX requiere el modo servidor (súbelo con el botón "Procesar en el servidor").', 'error');
-      state.mode = 'server';
-      updateModeUI();
-    }
-    if (state.mode === 'browser'){
-      processInBrowser(file);
-    } else {
-      uploadToServer(file);
-    }
+    state.mode = 'server';
+    uploadToServer(file);
   }
 
   function processInBrowser(file){
@@ -402,7 +393,7 @@
         const idx = parseInt(sel.getAttribute('data-col'), 10);
         const col = state.columns.find(c => c.index === idx);
         if (col){ col.applied_type = sel.value; col.forced = true; }
-        if (state.mode === 'browser') runLocalClean();
+    // Siempre servidor
         else if (state.file) uploadToServer(state.file);
       });
     });
@@ -446,7 +437,7 @@
 
     // Botones de descarga
     const dl = $('#downloads');
-    if (state.mode === 'server' && data.key){
+    if (data.key){
       dl.classList.remove('hidden');
       $('#dl-csv').href = API_BASE + '/api/download/' + data.key + '/csv';
       $('#dl-xlsx').href = API_BASE + '/api/download/' + data.key + '/xlsx';
@@ -489,14 +480,9 @@
   }
 
   function updateModeUI(){
-    const browser = state.mode === 'browser';
-    $('#mode-browser').className = 'rounded-lg px-3 py-1.5 text-xs font-semibold transition ' +
-      (browser ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800');
-    $('#mode-server').className = 'rounded-lg px-3 py-1.5 text-xs font-semibold transition ' +
-      (browser ? 'text-slate-500 hover:text-slate-800' : 'bg-white text-slate-900 shadow-sm');
-    $('#mode-hint').textContent = browser
-      ? 'El fichero NO sale de tu ordenador: todo el proceso ocurre en tu navegador.'
-      : 'El fichero se procesa en memoria en el servidor y se descarta al terminar.';
+    state.mode = 'server';
+    const hint = $('#mode-hint');
+    if (hint) hint.textContent = 'El fichero se procesa en memoria en el servidor y se descarta al terminar.';
   }
 
   // ---------- Init ----------
@@ -539,14 +525,7 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hidePaywall(); });
 
     // Tabs de modo
-    $('#mode-browser').addEventListener('click', () => {
-      if (!requireAuthToUse()){ setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error'); return; }
-      state.mode = 'browser'; updateModeUI(); if (state.file) processInBrowser(state.file);
-    });
-    $('#mode-server').addEventListener('click', () => {
-      if (!requireAuthToUse()){ setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error'); return; }
-      state.mode = 'server'; updateModeUI(); if (state.file) uploadToServer(state.file);
-    });
+    // Solo modo servidor
 
     // Dropzone
     const drop = $('#drop');
@@ -634,8 +613,7 @@
     // Opciones -> reprocesar
     $$('#options-panel input, #options-panel select').forEach((el) => {
       el.addEventListener('change', () => {
-        if (state.mode === 'browser' && state.rows.length) runLocalClean();
-        else if (state.mode === 'server' && state.file) uploadToServer(state.file);
+        if (state.file) uploadToServer(state.file);
       });
     });
 
