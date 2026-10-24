@@ -617,9 +617,15 @@
     // Botón de ejemplo
     const demoBtn = $('#load-demo');
     if (demoBtn){
-      demoBtn.addEventListener('click', async () => {
+      demoBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!requireAuthToUse()){
+          setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+          return;
+        }
         try {
-          const res = await fetch('/static/demo.csv');
+          const res = await fetch('/static/demo.csv', { cache: 'no-store' });
           const text = await res.text();
           const parsed = window.CSV_UTILS.parse(text);
           cancelUse(); // el ejemplo es una demostración: no consume pruebas
@@ -628,7 +634,9 @@
           state.fileName = 'ejemplo_prospectos.csv';
           state.columns = window.DATA_CLEANER.detectColumns(state.headers, state.rows);
           renderColumns();
-          runLocalClean();
+          state.file = new File([text], 'ejemplo_prospectos.csv', { type: 'text/csv' });
+          state.pendingUse = false;
+          uploadToServer(state.file);
           setStatus('Ejemplo cargado (datos ficticios).', 'ok');
           $('#results').scrollIntoView({behavior:'smooth', block:'start'});
         } catch (e){ setStatus('No se pudo cargar el ejemplo.', 'error'); }
