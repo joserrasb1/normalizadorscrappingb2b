@@ -488,15 +488,24 @@
   // Evitar que el navegador abra el archivo si se suelta fuera del dropzone
   try {
     window.addEventListener('dragover', function(e){
-      if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')){
-        e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.types){
+        const types = Array.from(e.dataTransfer.types);
+        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
-    }, { passive: false });
+    }, { passive: false, capture: true });
     window.addEventListener('drop', function(e){
-      if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')){
-        e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.types){
+        const types = Array.from(e.dataTransfer.types);
+        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
+          e.preventDefault();
+          e.stopPropagation();
+          // No abrir modal aquí, lo maneja el dropzone
+        }
       }
-    }, { passive: false });
+    }, { passive: false, capture: true });
   } catch(err){}
 
   // ---------- Init ----------
