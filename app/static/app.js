@@ -176,30 +176,124 @@
   }
 
   // ---------- Carga de fichero ----------
-  function requireAuthToUse(){
+  function isLoggedIn(){
     try {
       if (window.DCB && window.DCB.account && window.DCB.account.state && window.DCB.account.state.user){
         return true;
       }
     } catch(e){}
     try {
+      if (localStorage.getItem('dcb_user')) return true;
+      if (localStorage.getItem('token')) return true;
+    } catch(e){}
+    try {
+      const cookies = document.cookie || '';
+      if (cookies.includes('session=')) return true;
+    } catch(e){}
+    return false;
+  }
+
+  function openAuthNow(){
+    const msg = 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.';
+    try {
       const account = window.DCB && window.DCB.account;
       if (account && account.state) account.state.pendingUseFile = true;
-      const msg = 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.';
-      if (account && account.openAuth){
-        try {
-          account.openAuth('register', null, msg);
-        } catch(ex) {
-          try { account.openAuth('register', null); } catch(ex2) {}
-        }
-        return false;
+    } catch(e){}
+    try {
+      if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
+        try { window.DCB.account.openAuth('register', null, msg); return; } catch(e){}
+        try { window.DCB.account.openAuth('register', null); return; } catch(e){}
       }
     } catch(e){}
-    // Fallback: intentar abrir modal de cuenta
+    try {
+      const modal = document.getElementById('auth-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.setProperty('display', 'flex', 'important');
+        document.body.classList.add('overflow-hidden');
+        const tabReg = document.querySelector('#auth-modal [data-auth-tab="register"]');
+        if (tabReg) { try { tabReg.click(); } catch(ex){} }
+        const msgEl = document.getElementById('auth-message');
+        if (msgEl) { msgEl.textContent = msg; msgEl.classList.remove('hidden'); }
+        return;
+      }
+    } catch(e){}
     try {
       const btn = document.getElementById('btn-account');
-      if (btn) btn.click();
+      if (btn) { btn.click(); return; }
     } catch(e){}
+    try { alert(msg); } catch(e){}
+  }
+
+  try { window.openAuthNow = openAuthNow; window.forceOpenAuthModal = openAuthNow; } catch(e){}
+
+  // Forzar apertura del modal para subida/ejemplo si no hay sesión
+  try {
+    document.addEventListener('click', function(e){
+      if (isLoggedIn()) return;
+      const target = e.target;
+      if (!target) return;
+      // Botón cargar ejemplo
+      if (target.closest('#load-demo')) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        openAuthNow();
+        return;
+      }
+      // Texto "selecciónalo" dentro del dropzone
+      const drop = target.closest('#drop');
+      if (drop) {
+        // Si es el input, lo dejamos que lo gestione pero abrimos modal si procede
+        if (target.id === 'file') {
+          e.preventDefault();
+          e.stopPropagation();
+          openAuthNow();
+          return;
+        }
+        // Cualquier click en el recuadro sin sesión
+        e.preventDefault();
+        e.stopPropagation();
+        openAuthNow();
+        return;
+      }
+    }, true);
+
+    document.addEventListener('dragover', function(e){
+      if (isLoggedIn()) return;
+      if (e.dataTransfer && e.dataTransfer.types) {
+        const types = Array.from(e.dataTransfer.types);
+        if (types.includes('Files') || types.includes('application/x-moz-file')) {
+          e.preventDefault();
+          e.stopPropagation();
+          openAuthNow();
+        }
+      }
+    }, true);
+
+    document.addEventListener('drop', function(e){
+      if (isLoggedIn()) return;
+      if (e.dataTransfer && e.dataTransfer.types) {
+        const types = Array.from(e.dataTransfer.types);
+        if (types.includes('Files') || types.includes('application/x-moz-file')) {
+          const drop = document.getElementById('drop');
+          if (drop && drop.contains(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAuthNow();
+          } else if (!drop || !drop.contains(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAuthNow();
+          }
+        }
+      }
+    }, true);
+  } catch(err){}
+
+  function requireAuthToUse(){
+    if (isLoggedIn()) return true;
+    openAuthNow();
     return false;
   }
 
@@ -605,13 +699,8 @@
         const dt = e.dataTransfer;
         const f = dt && dt.files && dt.files[0];
         if (f){
-          if (!requireAuthToUse()){
-            try {
-              if (window.DCB && window.DCB.account && typeof window.DCB.account.openAuth === 'function') {
-                window.DCB.account.openAuth('register', 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.');
-                return;
-              }
-            } catch (err) {}
+          if (!isLoggedIn()){
+            openAuthNow();
             setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
             return;
           }
@@ -630,7 +719,7 @@
           handleFile(f);
           return;
         }
-      });
+      }, { capture: true });
       drop.addEventListener('click', (e) => {
         if (e.target === input) {
           if (!requireAuthToUse()){
