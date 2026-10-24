@@ -187,10 +187,18 @@
       if (account && account.state) account.state.pendingUseFile = true;
       const msg = 'Para probar la herramienta necesitas crear una cuenta. Regístrate gratis y tendrás 10 documentos de prueba.';
       if (account && account.openAuth){
-        account.openAuth('register', null, msg);
-      } else if (account && account.openAuth){
-        account.openAuth('register');
+        try {
+          account.openAuth('register', null, msg);
+        } catch(ex) {
+          try { account.openAuth('register', null); } catch(ex2) {}
+        }
+        return false;
       }
+    } catch(e){}
+    // Fallback: intentar abrir modal de cuenta
+    try {
+      const btn = document.getElementById('btn-account');
+      if (btn) btn.click();
     } catch(e){}
     return false;
   }
@@ -545,41 +553,60 @@
     const input = $('#file');
     if (drop && input){
       input.addEventListener('change', () => {
-        const f = input.files[0];
-        if (f && !requireAuthToUse()){
-          input.value = '';
-          setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+        const f = input.files && input.files[0];
+        if (f){
+          if (!requireAuthToUse()){
+            input.value = '';
+            setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
+            return;
+          }
+          state.file = f;
+          handleFile(f);
           return;
         }
-        state.file = f;
-        if (f) handleFile(f);
+        input.value = '';
       });
       ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
-        e.preventDefault(); drop.classList.add('border-indigo-400','bg-indigo-50/50');
+        e.preventDefault();
+        e.stopPropagation();
+        drop.classList.add('border-indigo-400','bg-indigo-50/50');
       }));
-      ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, (e) => {
-        e.preventDefault(); drop.classList.remove('border-indigo-400','bg-indigo-50/50');
+      ['dragleave'].forEach(ev => drop.addEventListener(ev, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        drop.classList.remove('border-indigo-400','bg-indigo-50/50');
       }));
       drop.addEventListener('drop', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         drop.classList.remove('border-indigo-400','bg-indigo-50/50');
-        const f = e.dataTransfer.files[0];
+        const dt = e.dataTransfer;
+        const f = dt && dt.files && dt.files[0];
         if (f){
           if (!requireAuthToUse()){
             setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
             return;
           }
           state.file = f;
-          try { input.files = e.dataTransfer.files; } catch(err){}
+          try {
+            if (input) {
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(f);
+              input.files = dataTransfer.files;
+            }
+          } catch(err){}
           handleFile(f);
+          return;
         }
       });
-      drop.addEventListener('click', () => {
+      drop.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (!requireAuthToUse()){
           setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
           return;
         }
-        input.click();
+        if (input) input.click();
       });
     }
 
