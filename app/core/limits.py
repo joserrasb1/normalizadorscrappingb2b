@@ -8,11 +8,11 @@ Límites por plan para Data Cleaner B2B
 from __future__ import annotations
 
 PLAN_LIMITS = {
-    # Free: registro sin tarjeta. deliberately por debajo de Basic para que
-    # contratar el plan Basic aporte algo (10x de filas, 2x de tamaño y
-    # 4x de histórico).
+    # Free: registro sin tarjeta. La prueba gratuita se mide en documentos
+    # (10 usos), no en filas. Los planes de pago sí se miden en filas.
     "free": {
         "rows_month": 1000,
+        "uses_month": 10,
         "max_mb": 5,
         "max_users": 1,
         "history_days": 7,

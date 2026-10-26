@@ -25,7 +25,8 @@
     fileName: 'prospectos.csv',
     busy: false,
     file: null,
-    pendingUse: false       // true cuando se procesa un fichero nuevo (consume 1 uso)
+    pendingUse: false,      // true cuando se procesa un fichero nuevo (consume 1 uso)
+    isDemo: false           // true si el fichero es el ejemplo oficial (no consume cuota)
   };
 
   // ---------- Prueba gratuita (sólo UI) ----------
@@ -117,6 +118,7 @@
     state.file = null;
     state.serverKey = null;
     state.pendingUse = false;
+    state.isDemo = false;
     state.headers = [];
     state.rows = [];
     state.columns = [];
@@ -153,7 +155,8 @@
     remaining: FREE_LIMIT,
     limit: FREE_LIMIT,
     used: 0,
-    hasSession: false
+    hasSession: false,
+    plan: 'free'
   };
 
   function remainingUses(){
@@ -161,6 +164,18 @@
       return Math.max(0, usageState.remaining);
     }
     return FREE_LIMIT;
+  }
+
+  function isFreePlan(){
+    return (usageState.plan || 'free') === 'free';
+  }
+
+  function planLimit(data){
+    const limits = data && data.limits ? data.limits : {};
+    if ((data && data.plan || 'free') === 'free'){
+      return limits.uses_month || FREE_LIMIT;
+    }
+    return limits.rows_month || FREE_LIMIT;
   }
 
   function fetchUsage(){
@@ -171,17 +186,20 @@
         .then(data => {
           if (data && data.usage && typeof data.usage.rows_used === 'number' && typeof data.usage.rows_limit === 'number'){
             usageState.hasSession = true;
+            usageState.plan = data.plan || 'free';
             usageState.used = data.usage.rows_used;
             usageState.limit = data.usage.rows_limit;
             usageState.remaining = Math.max(0, usageState.limit - usageState.used);
-          } else if (data && data.user){
+          } else if (data && data.id){
             // Usuario logueado pero sin registro de usage aún - usar límites del plan
             usageState.hasSession = true;
+            usageState.plan = data.plan || 'free';
             usageState.used = 0;
-            usageState.limit = data.limits && data.limits.rows_month ? data.limits.rows_month : FREE_LIMIT;
+            usageState.limit = planLimit(data);
             usageState.remaining = usageState.limit;
           } else {
             usageState.hasSession = false;
+            usageState.plan = 'free';
             usageState.remaining = FREE_LIMIT;
           }
           renderUsage();
@@ -189,12 +207,14 @@
         })
         .catch(() => {
           usageState.hasSession = false;
+          usageState.plan = 'free';
           usageState.remaining = FREE_LIMIT;
           renderUsage();
           return usageState;
         });
     }
     usageState.hasSession = false;
+    usageState.plan = 'free';
     usageState.remaining = FREE_LIMIT;
     renderUsage();
     return Promise.resolve(usageState);
@@ -223,17 +243,19 @@
 
   function renderUsage(){
     const hasSession = usageState.hasSession;
+    const free = !hasSession || isFreePlan();
     const limit = hasSession ? usageState.limit : FREE_LIMIT;
     const left = hasSession ? Math.max(0, usageState.remaining) : FREE_LIMIT;
+    const unit = free ? 'pruebas' : 'filas';
 
     const badge = $('#usage-badge');
     if (badge){
       if (left <= 0){
         badge.textContent = 'Sin cuota';
       } else {
-        badge.textContent = hasSession
-          ? left + '/' + limit + ' filas'
-          : left + '/' + limit + ' gratis';
+        badge.textContent = free
+          ? left + '/' + limit + ' gratis'
+          : left + '/' + limit + ' filas';
       }
       badge.className = 'rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ' +
         (left > 0
@@ -243,12 +265,13 @@
 
     const line = $('#usage-line');
     if (line){
+      const exampleNote = free ? 'el ejemplo no consume usos' : 'el ejemplo no consume cuota';
       if (hasSession){
         line.innerHTML = left > 0
           ? 'Te quedan <strong class="font-semibold text-slate-700">' + left + ' de ' + limit +
-            '</strong> filas este mes · el ejemplo no consume cuota'
-          : '<strong class="font-semibold text-amber-700">Has agotado tus ' + limit +
-            ' filas este mes</strong> · <a href="#precios" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">ver planes</a>';
+            '</strong> ' + unit + (free ? ' gratis' : ' este mes') + ' · ' + exampleNote
+          : '<strong class="font-semibold text-amber-700">Has agotado tus ' + limit + ' ' + unit +
+            (free ? ' gratis' : ' este mes') + '</strong> · <a href="#precios" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">ver planes</a>';
       } else {
         line.innerHTML = left > 0
           ? 'Te quedan <strong class="font-semibold text-slate-700">' + left + ' de ' + limit +
@@ -417,6 +440,7 @@
       return;
     }
     state.pendingUse = true;
+    state.isDemo = false;
     state.mode = 'server';
     uploadToServer(file);
   }
@@ -459,6 +483,7 @@
     Object.keys(map).forEach((k) => fd.append(k, opts[map[k]] ? 'true' : 'false'));
     fd.append('phone_format', opts.phoneFormat);
     fd.append('default_country_code', opts.defaultCountryCode);
+    fd.append('is_demo', state.isDemo ? 'true' : 'false');
     const ctypes = {};
     state.columns.forEach(c => { ctypes[c.index] = c.applied_type; });
     if (Object.keys(ctypes).length) fd.append('column_types', JSON.stringify(ctypes));
@@ -878,11 +903,6 @@
           return;
         }
 
-        if (remainingUses() <= 0) {
-          showPaywall();
-          return;
-        }
-
         try {
           const res = await fetch('/static/demo.csv', { cache: 'no-store' });
           if (!res.ok) throw new Error('fetch failed');
@@ -895,6 +915,7 @@
 
           state.file = file;
           state.pendingUse = true;
+          state.isDemo = true;
           state.mode = 'server';
 
           uploadToServer(file);

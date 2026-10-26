@@ -33,6 +33,13 @@ def _period_bounds(now: datetime | None = None) -> Tuple[datetime, datetime]:
     return start, end
 
 
+def _usage_limit_for_plan(plan: str | None, limits: dict) -> int:
+    """El plan Free se mide en documentos (usos); los de pago, en filas."""
+    if (plan or "free").lower() == "free":
+        return int(limits.get("uses_month") or ANON_FREE_TRIALS)
+    return int(limits["rows_month"])
+
+
 def get_or_create_usage(db: Session, org: models.Organization) -> models.Usage:
     start, end = _period_bounds()
     usage = (
@@ -52,7 +59,7 @@ def get_or_create_usage(db: Session, org: models.Organization) -> models.Usage:
         period_start=start,
         period_end=end,
         rows_used=0,
-        rows_limit=limits["rows_month"],
+        rows_limit=_usage_limit_for_plan(org.plan, limits),
     )
     db.add(usage)
     db.commit()
@@ -60,21 +67,40 @@ def get_or_create_usage(db: Session, org: models.Organization) -> models.Usage:
     return usage
 
 
-def check_quota(db: Session, org: models.Organization, rows_to_add: int) -> models.Usage:
+def sync_usage_limit(db: Session, org: models.Organization) -> models.Usage:
+    """Devuelve el usage del periodo y lo sincroniza con el plan actual.
+
+    Si el tipo de cuota cambia (filas -> documentos en el plan Free), se
+    reinicia el consumo del periodo para que la prueba gratuita sea real.
+    """
     usage = get_or_create_usage(db, org)
     limits = get_plan_limits(org.plan)
-    # Mantener límite sincronizado con plan
-    if usage.rows_limit != limits["rows_month"]:
-        usage.rows_limit = limits["rows_month"]
+    target_limit = _usage_limit_for_plan(org.plan, limits)
+    if usage.rows_limit != target_limit:
+        usage.rows_limit = target_limit
+        if (org.plan or "free").lower() == "free":
+            usage.rows_used = 0
         db.commit()
         db.refresh(usage)
+    return usage
+
+
+def check_quota(db: Session, org: models.Organization, rows_to_add: int) -> models.Usage:
+    usage = sync_usage_limit(db, org)
 
     if usage.rows_used + rows_to_add > usage.rows_limit:
+        if (org.plan or "free").lower() == "free":
+            message = (
+                f"Has agotado tus {usage.rows_limit} pruebas gratis. "
+                "Elige un plan para seguir limpiando listas."
+            )
+        else:
+            message = f"Has alcanzado el límite de {usage.rows_limit:,} filas este mes."
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "error": "quota_exceeded",
-                "message": f"Has alcanzado el límite de {usage.rows_limit:,} filas este mes.",
+                "message": message,
                 "plan": org.plan,
                 "used": usage.rows_used,
                 "limit": usage.rows_limit,

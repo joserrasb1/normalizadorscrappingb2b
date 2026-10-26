@@ -64,6 +64,32 @@ from app.billing.router import router as billing_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+_DEMO_HASH: Optional[str] = None
+
+
+def demo_file_hash() -> str:
+    """SHA-256 del CSV de ejemplo. Se usa para no consumir cuota con el ejemplo."""
+    global _DEMO_HASH
+    if _DEMO_HASH is None:
+        path = os.path.join(BASE_DIR, "app", "static", "demo.csv")
+        try:
+            import hashlib
+
+            with open(path, "rb") as fh:
+                _DEMO_HASH = hashlib.sha256(fh.read()).hexdigest()
+        except OSError:
+            _DEMO_HASH = ""
+    return _DEMO_HASH
+
+
+def is_demo_payload(data: bytes) -> bool:
+    expected = demo_file_hash()
+    if not expected:
+        return False
+    import hashlib
+
+    return hashlib.sha256(data).hexdigest() == expected
+
 
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     """Rechaza requests con Content-Length superior al límite y añade cabeceras."""
@@ -206,6 +232,7 @@ async def clean_upload(
     strip_plus_tags: bool = Form(False),
     phone_format: str = Form("auto"),
     default_country_code: str = Form("34"),
+    is_demo: bool = Form(False),
 ) -> JSONResponse:
     """Sube un CSV/TSV/TXT/XLSX y lo normaliza en memoria."""
     if not file.filename:
@@ -262,9 +289,13 @@ async def clean_upload(
         headers, rows, meta = read_table(data, file.filename)
         rows_count = len(rows)
 
-        # Cuotas
+        # Cuotas: el plan Free se mide en documentos (1 uso por fichero);
+        # los planes de pago, en filas. El ejemplo oficial no consume cuota.
         if org:
-            consume_quota(db, org, rows_count)
+            demo = bool(is_demo) and is_demo_payload(data)
+            if not demo:
+                units = 1 if (org.plan or "free").lower() == "free" else rows_count
+                consume_quota(db, org, units)
         else:
             check_anon_quota(request, rows_count)
 

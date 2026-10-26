@@ -1,6 +1,6 @@
 # Data Cleaner B2B — Normalizador de datos para scraping y BBDD B2B
 
-POC web **gratuita** (sin registro, sin tarjeta) que limpia y normaliza datos de
+POC web **gratuita** (10 pruebas al registrarte, sin tarjeta) que limpia y normaliza datos de
 prospectos: **empresa, persona, email, teléfono, cargo y ubicación**.
 
 Sube un CSV/TSV/XLSX "sucio" de scraping o de un CRM y obtienes una tabla

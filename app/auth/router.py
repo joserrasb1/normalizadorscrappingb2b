@@ -6,6 +6,7 @@ from app.auth.session import create_session_token, verify_session_token
 from app.core.config import settings
 from app.core.cookies import set_session_cookie, delete_session_cookie
 from app.core.limits import get_plan_limits
+from app.usage.service import sync_usage_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -102,17 +103,13 @@ async def me(request: Request, db: Session = Depends(get_db)):
             }
             payload["plan"] = org.plan
             payload["limits"] = get_plan_limits(org.plan)
-            usage = (
-                db.query(service.models.Usage)
-                .filter(service.models.Usage.organization_id == org.id)
-                .order_by(service.models.Usage.period_start.desc())
-                .first()
-            )
-            if usage:
-                payload["usage"] = {
-                    "rows_used": usage.rows_used,
-                    "rows_limit": usage.rows_limit,
-                    "period_start": usage.period_start,
-                }
+            # Devuelve siempre el consumo del periodo actual, sincronizado con
+            # el plan (Free = 10 documentos; de pago = filas).
+            usage = sync_usage_limit(db, org)
+            payload["usage"] = {
+                "rows_used": usage.rows_used,
+                "rows_limit": usage.rows_limit,
+                "period_start": usage.period_start,
+            }
 
     return payload
