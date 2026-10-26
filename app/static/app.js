@@ -682,38 +682,6 @@
     }
   }
 
-  // ---------- Descargas en modo navegador ----------
-  function downloadLocal(fmt){
-    if (!state.outRows){ setStatus('Primero procesa un fichero.', 'error'); return; }
-    const base = (state.fileName || 'prospectos').replace(/\.[^.]+$/, '');
-    if (fmt === 'csv'){
-      const delim = ($('#csvDelimiter') && $('#csvDelimiter').value) || ';';
-      const text = window.CSV_UTILS.serialize(state.headers, state.outRows, delim, true, true);
-      const blob = new Blob([text], {type: 'text/csv;charset=utf-8'});
-      triggerDownload(blob, base + '_limpio.csv');
-    } else if (fmt === 'json'){
-      const obj = toObjects(state.headers, state.outRows);
-      const blob = new Blob([JSON.stringify(obj, null, 2)], {type: 'application/json;charset=utf-8'});
-      triggerDownload(blob, base + '_limpio.json');
-    } else if (fmt === 'xlsx'){
-      if (window.XLSX_MIN){
-        const bytes = window.XLSX_MIN.write(state.headers, state.outRows, 'Datos limpios');
-        const blob = new Blob([bytes], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-        triggerDownload(blob, base + '_limpio.xlsx');
-      } else {
-        setStatus('No se pudo generar el Excel; usa CSV o JSON.', 'error');
-      }
-    }
-  }
-
-  function triggerDownload(blob, filename){
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-  }
-
   function updateModeUI(){
     state.mode = 'server';
     const hint = $('#mode-hint');
@@ -957,14 +925,6 @@
         if (state.file) uploadToServer(state.file);
       });
     });
-
-    // Descargas locales
-    const dlc = $('#dl-csv-local');
-    if (dlc) dlc.addEventListener('click', () => downloadLocal('csv'));
-    const dlj = $('#dl-json-local');
-    if (dlj) dlj.addEventListener('click', () => downloadLocal('json'));
-    const dlx = $('#dl-xlsx-local');
-    if (dlx) dlx.addEventListener('click', () => downloadLocal('xlsx'));
 
     updateModeUI();
   }

@@ -56,6 +56,21 @@ def test_build_sin_api_deja_el_mismo_origen(tmp_path):
     assert '<meta name="api-base" content="">' in html
 
 
+def test_descargas_de_resultados_son_unicas_y_apuntan_al_servidor(tmp_path):
+    out = tmp_path / "dist"
+    build(str(out), None)
+    html = (out / "index.html").read_text(encoding="utf-8")
+    app_js = (out / "static" / "app.js").read_text(encoding="utf-8")
+
+    for button_id, fmt in (("dl-csv", "csv"), ("dl-xlsx", "xlsx"), ("dl-json", "json")):
+        assert html.count('id="%s"' % button_id) == 1
+        assert re.search(r'<a id="%s"[^>]*download><svg' % button_id, html)
+        assert "$('#%s').href = API_BASE + '/api/download/' + data.key + '/%s'" % (button_id, fmt) in app_js
+
+    assert "downloads-local" not in html
+    assert "dl-csv-local" not in html
+
+
 def test_build_mismo_origen_no_abre_connect_src(tmp_path):
     """Con el proxy de Pages no hace falta permitir otro origen en la CSP."""
     out = tmp_path / "dist"
