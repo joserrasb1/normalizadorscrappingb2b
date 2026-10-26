@@ -21,14 +21,14 @@ API).
 │  Cloudflare Pages (gratis)  │  fetch │  Render Free (gratis)    │
 │  landing + modo navegador   │ ─────► │  /api/clean, /api/detect │
 │  → el fichero NO sale       │ same-  │  /api/download/...       │
-│  + proxy /api,/auth,/billing│ origin │  /auth/*, /billing/*     │
+│  + proxy /api,/auth,/billing│ origin │  /auth/*,/billing/*,/admin│
 └─────────────────────────────┘        └──────────────────────────┘
    100 % en el cliente                  sólo XLSX / API / cuenta
    (instantáneo, sin cold start)        (duerme a los 15 min)
 ```
 
 El navegador **nunca llama a `onrender.com`**: `functions/_middleware.js`
-(Cloudflare Pages Functions) reenvía `/api/*`, `/auth/*` y `/billing/*` a la
+(Cloudflare Pages Functions) reenvía `/api/*`, `/auth/*`, `/billing/*` y `/admin*` a la
 API. Así todo es **mismo origen** y la cookie de sesión es de primera parte
 (Safari y Chrome no la bloquean). La API sigue accesible directamente por su
 URL para integraciones con API key.
@@ -110,7 +110,7 @@ directamente. Si cambias de dominio, ajusta en **Render → Environment**:
      ```
      API_ORIGIN=https://normalizadorscrappingb2b.onrender.com
      ```
-     Es la URL a la que el proxy reenvía `/api`, `/auth` y `/billing`.
+     Es la URL a la que el proxy reenvía `/api`, `/auth`, `/billing` y `/admin`.
      **No definas `API_BASE`**: el script de build lo lee del entorno y
      volvería a poner la API en otro dominio (rompería la sesión).
 3. **Save and Deploy**. En unos segundos tendrás
@@ -317,6 +317,24 @@ python3 -m tools.build_static --api-base http://127.0.0.1:8000 --out dist
 python3 -m http.server 8001 --directory dist
 # abre http://127.0.0.1:8001
 ```
+
+## Panel de administración y visitas
+
+El panel está disponible en <https://normalizadorscrappingb2b.pages.dev/admin>.
+Usa autenticación HTTP Basic (el navegador solicitará las credenciales):
+
+- Usuario inicial: `adm`
+- Contraseña inicial: `4dm1n$`
+
+El panel lista las cuentas, su plan, el consumo mensual y si Stripe ha
+registrado una suscripción. También muestra visitas y visitantes únicos por
+día, las últimas 100 visitas y exportaciones CSV. La landing registra cada
+carga de página usando un ID aleatorio en una cookie propia; no guarda la IP.
+
+Las credenciales se pueden cambiar en **Render → Environment** con
+`ADMIN_USER` y `ADMIN_PASSWORD`. El panel se sirve a través del proxy de Pages
+y está protegido por HTTPS. La tabla `page_visits` se crea automáticamente al
+arrancar la API.
 
 ## 6. Cuando el POC se venda
 

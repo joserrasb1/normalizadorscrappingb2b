@@ -24,12 +24,14 @@ import os
 import time
 import uuid
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy.orm import Session
 
 from app import __version__
 from app.detection import detect_columns
@@ -54,13 +56,14 @@ from app.tabular import (
 )
 from app.auth.router import router as auth_router
 from app.db.base import Base
-from app.db.session import engine, SessionLocal
+from app.db.session import engine, SessionLocal, get_db
 from app.db import models
 from app.usage.service import check_anon_quota, set_anon_usage_cookie, consume_quota, get_plan_limits
 from app.core.limits import max_bytes_for_plan, ANON_MAX_MB, MB_TO_BYTES
 from app.auth.session import verify_session_token
 from app.core.config import settings
 from app.billing.router import router as billing_router
+from app.admin.router import router as admin_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -132,6 +135,7 @@ except Exception:
 
 app.include_router(auth_router)
 app.include_router(billing_router)
+app.include_router(admin_router)
 
 # --- CORS ---------------------------------------------------------------
 # La landing se sirve desde Cloudflare Pages (otro dominio) y llama a esta
@@ -216,6 +220,65 @@ async def health() -> JSONResponse:
     return JSONResponse(
         content={"status": "ok", "service": "data-cleaner-b2b", "version": __version__}
     )
+
+
+@app.post("/api/track", status_code=204)
+async def track_page_visit(request: Request, db: Session = Depends(get_db)):
+    """Registra una carga de página para el panel, sin guardar la IP."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    user_agent = (request.headers.get("user-agent") or "")[:300]
+    lowered_agent = user_agent.lower()
+    if any(token in lowered_agent for token in (
+        "bot", "crawler", "spider", "slurp", "lighthouse", "headlesschrome",
+        "curl/", "wget/", "python-requests",
+    )):
+        return Response(status_code=204)
+
+    visitor_id = request.cookies.get("dcb_visitor") or uuid.uuid4().hex
+    path = payload.get("path", "/")
+    if not isinstance(path, str) or not path.startswith("/"):
+        path = "/"
+    path = path.split("?", 1)[0][:300] or "/"
+    referrer = payload.get("referrer", "")
+    if not isinstance(referrer, str):
+        referrer = ""
+    if referrer:
+        try:
+            parsed_referrer = urlsplit(referrer)
+            referrer = (
+                "{}://{}".format(parsed_referrer.scheme, parsed_referrer.netloc)
+                if parsed_referrer.scheme and parsed_referrer.netloc
+                else ""
+            )
+        except Exception:
+            referrer = ""
+
+    db.add(models.PageVisit(
+        visitor_id=visitor_id[:64],
+        path=path,
+        referrer=referrer[:500] or None,
+        user_agent=user_agent or None,
+    ))
+    db.commit()
+
+    response = Response(status_code=204)
+    if not request.cookies.get("dcb_visitor"):
+        response.set_cookie(
+            key="dcb_visitor",
+            value=visitor_id,
+            max_age=60 * 60 * 24 * 365,
+            httponly=True,
+            secure=settings.ENV == "production",
+            samesite="lax",
+            path="/",
+        )
+    return response
 
 
 @app.post("/api/clean")

@@ -726,7 +726,32 @@
   // (fase de captura) para evitar que el navegador abra o descargue el fichero.
 
   // ---------- Init ----------
+  function trackPageVisit(){
+    try {
+      if (!window.location || !window.navigator) return;
+      const payload = JSON.stringify({
+        path: window.location.pathname || '/',
+        referrer: document.referrer || ''
+      });
+      const endpoint = API_BASE + '/api/track';
+      if (typeof window.navigator.sendBeacon === 'function' && typeof window.Blob === 'function'){
+        const blob = new window.Blob([payload], { type: 'application/json' });
+        if (window.navigator.sendBeacon(endpoint, blob)) return;
+      }
+      if (typeof window.fetch === 'function'){
+        window.fetch(endpoint, {
+          method: 'POST',
+          credentials: 'include',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: payload
+        }).catch(function(){});
+      }
+    } catch (e) { /* analítica no debe interferir con la herramienta */ }
+  }
+
   function init(){
+    trackPageVisit();
     // Enlaces del pie a la API (/docs y /health): deben apuntar a la API,
     // no al origen que sirve la landing (puede ser Cloudflare Pages).
     const linkDocs = $('#link-api-docs');

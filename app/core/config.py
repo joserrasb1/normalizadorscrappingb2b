@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     # Auth
     PASSWORD_MIN_LENGTH: int = 8
     BCRYPT_ROUNDS: int = 12
+
+    # Panel de administración (HTTP Basic; cambiar por variables de entorno
+    # en Render cuando se quiera rotar la contraseña).
+    ADMIN_USER: str = "adm"
+    ADMIN_PASSWORD: str = "4dm1n$"
     
     # Stripe (will be used later)
     STRIPE_SECRET_KEY: str = ""

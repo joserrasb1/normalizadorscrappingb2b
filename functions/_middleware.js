@@ -20,8 +20,8 @@
 const DEFAULT_API = "https://normalizadorscrappingb2b.onrender.com";
 
 // Rutas que se reenvían a la API.
-const PREFIXES = ["/api/", "/auth/", "/billing/"];
-const EXACT = ["/health", "/docs", "/openapi.json", "/redoc"];
+const PREFIXES = ["/api/", "/auth/", "/billing/", "/admin/"];
+const EXACT = ["/health", "/docs", "/openapi.json", "/redoc", "/admin"];
 
 // Cabeceras que no deben reenviarse tal cual (las gestiona Cloudflare).
 const DROP_REQUEST = [

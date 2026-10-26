@@ -113,3 +113,16 @@ class StripeEvent(Base):
     event_id = Column(String, primary_key=True)  # evt_...
     event_type = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PageVisit(Base):
+    """Page view analytics; visitor_id is random and no IP address is stored."""
+
+    __tablename__ = "page_visits"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    visitor_id = Column(String, nullable=False, index=True)
+    path = Column(String, nullable=False, default="/")
+    referrer = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
