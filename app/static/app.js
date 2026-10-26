@@ -80,6 +80,31 @@
     if (msg) el.classList.remove('hidden');
   }
 
+  // Muestra el nombre del fichero y el resultado dentro del recuadro de subida,
+  // donde el usuario acaba de soltarlo (el mensaje inferior queda fuera de vista).
+  function showFileStatus(name, message, kind){
+    const box = $('#file-status');
+    const nameEl = $('#file-status-name');
+    const msgEl = $('#file-status-msg');
+    if (!box || !nameEl || !msgEl) return;
+    const styles = kind === 'error'
+      ? { box: 'bg-red-50 ring-red-200', name: 'text-red-800', msg: 'text-red-600' }
+      : kind === 'ok'
+        ? { box: 'bg-emerald-50 ring-emerald-200', name: 'text-emerald-900', msg: 'text-emerald-700' }
+        : { box: 'bg-white ring-slate-200', name: 'text-slate-800', msg: 'text-slate-500' };
+    box.className = 'mt-4 rounded-lg px-3 py-2 text-left ring-1 ' + styles.box;
+    box.classList.remove('hidden');
+    nameEl.className = 'truncate text-xs font-semibold ' + styles.name;
+    msgEl.className = 'mt-0.5 text-[11px] ' + styles.msg;
+    nameEl.textContent = name || '';
+    msgEl.textContent = message || '';
+  }
+
+  function clearFileStatus(){
+    const box = $('#file-status');
+    if (box) box.classList.add('hidden');
+  }
+
   function escapeHtml(s){
     return String(s == null ? '' : s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -355,11 +380,13 @@
     if (!file) return;
     if (!requireAuthToUse()){
       cancelUse();
+      clearFileStatus();
       setStatus('Necesitas iniciar sesión o crear una cuenta para probar la herramienta (10 pruebas gratis).', 'error');
       return;
     }
     if (remainingUses() <= 0){
       cancelUse();
+      showFileStatus(file.name, 'Sin cuota disponible. Elige un plan para seguir procesando.', 'error');
       showPaywall();
       return;
     }
@@ -393,6 +420,7 @@
   }
 
   function uploadToServer(file){
+    showFileStatus(file.name || 'fichero', 'Procesando…', 'info');
     setStatus('Subiendo y procesando en el servidor… (si el servicio gratuito está ' +
               'dormido, la primera petición puede tardar hasta 1 minuto)', 'info');
     const fd = new FormData();
@@ -412,8 +440,15 @@
 
     fetch(API_BASE + '/api/clean', {method: 'POST', body: fd, credentials: 'include'})
       .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error del servidor');
+        const raw = await res.text();
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = {}; }
+        if (!res.ok) {
+          let detail = data && data.detail;
+          if (detail && typeof detail === 'object') detail = detail.message || detail.error;
+          throw new Error(detail || ('Error del servidor (HTTP ' + res.status + ')'));
+        }
+        if (!data || !data.key) throw new Error('El servidor no devolvió un resultado válido.');
         state.serverKey = data.key;
         state.headers = data.headers;
         state.columns = data.columns;
@@ -422,18 +457,24 @@
         renderColumns();
         renderResults(data);
         finishUse();
-        setStatus('Listo: ' + data.total_rows + ' fila(s) procesadas.', 'ok');
+        const doneMsg = 'Listo: ' + data.total_rows + ' fila(s) procesadas.';
+        showFileStatus(file.name, doneMsg, 'ok');
+        setStatus(doneMsg, 'ok');
       })
-      .catch((err) => { cancelUse(); setStatus(serverErrorMessage(err), 'error'); });
+      .catch((err) => {
+        cancelUse();
+        const msg = serverErrorMessage(err);
+        showFileStatus(file.name, msg, 'error');
+        setStatus(msg, 'error');
+      });
   }
 
   function serverErrorMessage(err){
     if (err instanceof TypeError){
-      return 'No se pudo contactar con el servidor. Si la página se sirve desde ' +
-             'Cloudflare, revisa que la URL de la API (meta "api-base") sea correcta. ' +
-             'Mientras tanto, usa el modo "En mi navegador", que funciona sin servidor.';
+      return 'No se pudo contactar con el servidor. Comprueba tu conexión y vuelve a intentarlo.';
     }
-    return err.message;
+    if (err && err.message) return err.message;
+    return 'No se pudo procesar el fichero.';
   }
 
   // ---------- Motor local ----------
