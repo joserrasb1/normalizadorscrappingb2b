@@ -420,9 +420,8 @@
   }
 
   function uploadToServer(file){
-    showFileStatus(file.name || 'fichero', 'Procesando…', 'info');
-    setStatus('Subiendo y procesando en el servidor… (si el servicio gratuito está ' +
-              'dormido, la primera petición puede tardar hasta 1 minuto)', 'info');
+    showFileStatus(file.name || 'fichero', 'Procesando… (si el servicio gratuito está ' +
+                   'dormido, la primera petición puede tardar hasta 1 minuto)', 'info');
     const fd = new FormData();
     fd.append('file', file);
     const opts = readOptions();
@@ -457,15 +456,11 @@
         renderColumns();
         renderResults(data);
         finishUse();
-        const doneMsg = 'Listo: ' + data.total_rows + ' fila(s) procesadas.';
-        showFileStatus(file.name, doneMsg, 'ok');
-        setStatus(doneMsg, 'ok');
+        showFileStatus(file.name, 'Listo: ' + data.total_rows + ' fila(s) procesadas.', 'ok');
       })
       .catch((err) => {
         cancelUse();
-        const msg = serverErrorMessage(err);
-        showFileStatus(file.name, msg, 'error');
-        setStatus(msg, 'error');
+        showFileStatus(file.name, serverErrorMessage(err), 'error');
       });
   }
 
@@ -872,14 +867,10 @@
           state.pendingUse = true;
           state.mode = 'server';
 
-          setStatus('Cargando ejemplo...', 'ok');
           uploadToServer(file);
-
-          const resultsEl = $('#results');
-          if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (err) {
           console.error(err);
-          setStatus('No se pudo cargar el ejemplo.', 'error');
+          showFileStatus('ejemplo_prospectos.csv', 'No se pudo cargar el ejemplo.', 'error');
         }
       }, { capture: true });
     }
