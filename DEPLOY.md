@@ -263,9 +263,9 @@ Guarda y Render redespliega automáticamente.
 ## 4. Despliegue monolítico (alternativa, 1 clic)
 
 Si prefieres no usar dos plataformas, en Render basta con el `render.yaml` de la
-raíz: el servicio sirve **la landing y la API** desde el mismo origen. Todo
-funciona igual, salvo que la landing suffer cold starts (30-60 s) cuando el
-servicio está dormido.
+raíz. Por defecto Render redirige `/` a Pages; para servir la landing desde
+Render en modo monolítico, deja `APP_URL` vacío. Todo funciona igual, salvo que
+la landing sufre cold starts (30-60 s) cuando el servicio está dormido.
 
 ```yaml
 # render.yaml (ya está en la raíz, no hay que tocarlo)

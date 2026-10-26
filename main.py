@@ -28,7 +28,7 @@ from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
@@ -206,8 +206,15 @@ if os.path.isdir(static_dir):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index() -> str:
-    """Landing page con demo híbrida (servidor + navegador)."""
+async def index():
+    """En Render, la raíz apunta a la URL pública canónica de Pages."""
+    if os.getenv("RENDER") and settings.APP_URL:
+        return RedirectResponse(
+            url=settings.APP_URL,
+            status_code=302,
+            headers={"Cache-Control": "no-store"},
+        )
+
     html_path = os.path.join(BASE_DIR, "app", "templates", "index.html")
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:

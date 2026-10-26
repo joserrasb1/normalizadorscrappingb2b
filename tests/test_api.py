@@ -30,6 +30,16 @@ def test_index_serve_landing(client):
     assert "Data Cleaner" in r.text
 
 
+def test_raiz_de_render_redirige_a_pages(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setattr(settings, "APP_URL", "https://normalizadorscrappingb2b.pages.dev")
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://normalizadorscrappingb2b.pages.dev"
+
+
 def test_detect(client):
     r = client.post("/api/detect", files={"file": ("prospectos.csv", CSV_SUCIO.encode("utf-8"), "text/csv")})
     assert r.status_code == 200
