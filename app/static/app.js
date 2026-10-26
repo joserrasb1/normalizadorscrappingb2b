@@ -102,7 +102,33 @@
 
   function clearFileStatus(){
     const box = $('#file-status');
-    if (box) box.classList.add('hidden');
+    if (!box) return;
+    box.classList.add('hidden');
+    const nameEl = $('#file-status-name');
+    const msgEl = $('#file-status-msg');
+    if (nameEl) nameEl.textContent = '';
+    if (msgEl) msgEl.textContent = '';
+  }
+
+  // Al cerrar sesión se limpia todo lo que pertenece a la sesión anterior:
+  // el nombre/estado del último fichero, los resultados y las columnas.
+  function resetSessionView(){
+    clearFileStatus();
+    state.file = null;
+    state.serverKey = null;
+    state.pendingUse = false;
+    state.headers = [];
+    state.rows = [];
+    state.columns = [];
+    state.stats = null;
+    const status = $('#status');
+    if (status) status.classList.add('hidden');
+    const results = $('#results');
+    if (results) results.classList.add('hidden');
+    const columns = $('#columns-wrap');
+    if (columns) columns.classList.add('hidden');
+    const downloads = $('#downloads');
+    if (downloads) downloads.classList.add('hidden');
   }
 
   function escapeHtml(s){
@@ -686,7 +712,11 @@
     // Prueba gratuita: contador, paywall y botones de compra
     renderUsage();
     fetchUsage();
-    window.addEventListener('dcb:session', function(){ fetchUsage(); });
+    window.addEventListener('dcb:session', function(ev){
+      fetchUsage();
+      const user = ev && ev.detail ? ev.detail.user : null;
+      if (!user) resetSessionView();
+    });
     $$('[data-billing-plan]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const plan = btn.getAttribute('data-billing-plan');
