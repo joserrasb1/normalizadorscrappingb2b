@@ -143,6 +143,28 @@ def test_me_devuelve_plan_y_limites(client):
     assert body["limits"]["rows_month"] == 1000
 
 
+def test_upgrade_free_a_basic_inicia_la_cuota_de_filas_completa(client, db):
+    client.post(
+        "/auth/register", json={"email": "upgrade@example.com", "password": "supersecret"}
+    )
+    # Crear el contador Free y simular que ya se agotaron sus 10 usos.
+    client.get("/auth/me")
+    usage = db.query(models.Usage).one()
+    usage.rows_used = 10
+    db.commit()
+
+    org = db.query(models.Organization).one()
+    org.plan = "basic"
+    db.commit()
+
+    response = client.get("/auth/me")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["plan"] == "basic"
+    assert body["usage"]["rows_used"] == 0
+    assert body["usage"]["rows_limit"] == 10000
+
+
 def test_logout_invalida_la_sesion(client):
     client.post(
         "/auth/register", json={"email": "ana@example.com", "password": "supersecret"}

@@ -70,16 +70,15 @@ def get_or_create_usage(db: Session, org: models.Organization) -> models.Usage:
 def sync_usage_limit(db: Session, org: models.Organization) -> models.Usage:
     """Devuelve el usage del periodo y lo sincroniza con el plan actual.
 
-    Si el tipo de cuota cambia (filas -> documentos en el plan Free), se
-    reinicia el consumo del periodo para que la prueba gratuita sea real.
+    Al cambiar de plan, el consumo del plan anterior no se arrastra al nuevo:
+    se inicia el periodo con la cuota completa del plan recién activado.
     """
     usage = get_or_create_usage(db, org)
     limits = get_plan_limits(org.plan)
     target_limit = _usage_limit_for_plan(org.plan, limits)
     if usage.rows_limit != target_limit:
         usage.rows_limit = target_limit
-        if (org.plan or "free").lower() == "free":
-            usage.rows_used = 0
+        usage.rows_used = 0
         db.commit()
         db.refresh(usage)
     return usage
