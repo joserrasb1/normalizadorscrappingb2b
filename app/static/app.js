@@ -149,6 +149,65 @@
     return Promise.resolve(usageState);
   }
 
+  function setUses(n){
+    memoryUses = Math.max(0, Math.min(FREE_LIMIT, n));
+    try { window.localStorage.setItem(USAGE_KEY, String(memoryUses)); } catch (e) { /* modo privado */ }
+    renderUsage();
+  }
+
+  function cancelUse(){
+    state.pendingUse = false;
+  }
+
+  function finishUse(){
+    state.pendingUse = false;
+    // Con sesión el consumo lo lleva el servidor: refrescamos el contador real.
+    if (window.DCB && window.DCB.account && window.DCB.account.state && window.DCB.account.state.user){
+      fetchUsage();
+    } else {
+      setUses(usesCount() + 1);
+    }
+    renderUsage();
+  }
+
+  function renderUsage(){
+    const hasSession = usageState.hasSession;
+    const limit = hasSession ? usageState.limit : FREE_LIMIT;
+    const left = hasSession ? Math.max(0, usageState.remaining) : FREE_LIMIT;
+
+    const badge = $('#usage-badge');
+    if (badge){
+      if (left <= 0){
+        badge.textContent = 'Sin cuota';
+      } else {
+        badge.textContent = hasSession
+          ? left + '/' + limit + ' filas'
+          : left + '/' + limit + ' gratis';
+      }
+      badge.className = 'rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ' +
+        (left > 0
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+          : 'bg-amber-50 text-amber-700 ring-amber-200');
+    }
+
+    const line = $('#usage-line');
+    if (line){
+      if (hasSession){
+        line.innerHTML = left > 0
+          ? 'Te quedan <strong class="font-semibold text-slate-700">' + left + ' de ' + limit +
+            '</strong> filas este mes · el ejemplo no consume cuota'
+          : '<strong class="font-semibold text-amber-700">Has agotado tus ' + limit +
+            ' filas este mes</strong> · <a href="#precios" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">ver planes</a>';
+      } else {
+        line.innerHTML = left > 0
+          ? 'Te quedan <strong class="font-semibold text-slate-700">' + left + ' de ' + limit +
+            '</strong> pruebas gratis · el ejemplo no consume usos'
+          : '<strong class="font-semibold text-amber-700">Has usado tus ' + limit +
+            ' pruebas gratis</strong> · <a href="#precios" class="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2">ver planes</a>';
+      }
+    }
+  }
+
   function showPaywall(){
     const m = $('#paywall');
     if (!m) return;
@@ -265,38 +324,24 @@
     }, true);
 
     document.addEventListener('dragover', function(e){
-      if (isLoggedIn()) return;
-      if (e.dataTransfer && e.dataTransfer.types) {
-        const types = Array.from(e.dataTransfer.types);
-        if (types.includes('Files') || types.includes('application/x-moz-file')) {
-          const drop = document.getElementById('drop');
-          if (drop && drop.contains(e.target)) {
-            e.preventDefault();
-            e.stopPropagation();
-            openAuthNow();
-            return;
-          }
-          e.preventDefault();
-          e.stopPropagation();
-          openAuthNow();
-        }
+      if (!e.dataTransfer || !e.dataTransfer.types) return;
+      const types = Array.from(e.dataTransfer.types);
+      if (types.includes('Files') || types.includes('application/x-moz-file')) {
+        // Evita que el navegador abra/descargue el fichero. No abrimos el modal
+        // aquí para no interrumpir mientras se arrastra.
+        e.preventDefault();
       }
     }, true);
 
     document.addEventListener('drop', function(e){
+      if (!e.dataTransfer || !e.dataTransfer.types) return;
+      const types = Array.from(e.dataTransfer.types);
+      if (!(types.includes('Files') || types.includes('application/x-moz-file'))) return;
+      // Nunca permitimos que el navegador abra el fichero.
+      e.preventDefault();
       if (isLoggedIn()) return;
-      if (e.dataTransfer && e.dataTransfer.types) {
-        const types = Array.from(e.dataTransfer.types);
-        if (types.includes('Files') || types.includes('application/x-moz-file')) {
-          const drop = document.getElementById('drop');
-          if (drop && drop.contains(e.target)) {
-            e.preventDefault();
-            e.stopPropagation();
-            openAuthNow();
-            return;
-          }
-        }
-      }
+      e.stopPropagation();
+      openAuthNow();
     }, true);
   } catch(err){}
 
@@ -365,7 +410,7 @@
     state.columns.forEach(c => { ctypes[c.index] = c.applied_type; });
     if (Object.keys(ctypes).length) fd.append('column_types', JSON.stringify(ctypes));
 
-    fetch(API_BASE + '/api/clean', {method: 'POST', body: fd})
+    fetch(API_BASE + '/api/clean', {method: 'POST', body: fd, credentials: 'include'})
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Error del servidor');
@@ -590,29 +635,8 @@
 
 
 
-  // Evitar que el navegador abra el archivo fuera del dropzone
-  try {
-    window.addEventListener('dragover', function(e){
-      if (e.dataTransfer && e.dataTransfer.types){
-        const types = Array.from(e.dataTransfer.types);
-        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }
-    }, { passive: false, capture: true });
-    window.addEventListener('drop', function(e){
-      const drop = document.getElementById('drop');
-      if (drop && drop.contains(e.target)) return;
-      if (e.dataTransfer && e.dataTransfer.types){
-        const types = Array.from(e.dataTransfer.types);
-        if (types.indexOf('Files') !== -1 || types.indexOf('application/x-moz-file') !== -1){
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }
-    }, { passive: false, capture: true });
-  } catch(err){}
+  // La prevención global de dragover/drop vive en los listeners de documento
+  // (fase de captura) para evitar que el navegador abra o descargue el fichero.
 
   // ---------- Init ----------
   function init(){
@@ -625,6 +649,8 @@
 
     // Prueba gratuita: contador, paywall y botones de compra
     renderUsage();
+    fetchUsage();
+    window.addEventListener('dcb:session', function(){ fetchUsage(); });
     $$('[data-billing-plan]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const plan = btn.getAttribute('data-billing-plan');

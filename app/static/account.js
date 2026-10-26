@@ -212,6 +212,7 @@ function $(sel){ return document.querySelector(sel); }
         state.plan = 'free';
       }
       renderAccount();
+      try { window.dispatchEvent(new CustomEvent('dcb:session', { detail: { user: state.user } })); } catch (e) {}
       return state.user;
     });
   }
@@ -223,6 +224,7 @@ function $(sel){ return document.querySelector(sel); }
       state.plan = 'free';
       hide($('#account-panel'));
       renderAccount();
+      try { window.dispatchEvent(new CustomEvent('dcb:session', { detail: { user: null } })); } catch (e) {}
       toast('Sesión cerrada.');
     });
   }
