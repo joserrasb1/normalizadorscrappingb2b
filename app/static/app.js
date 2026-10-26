@@ -242,16 +242,21 @@
         return;
       }
       // Texto "selecciónalo" dentro del dropzone
+      if (target.id === 'trigger-select' || target.closest('#trigger-select')) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        openAuthNow();
+        return;
+      }
       const drop = target.closest('#drop');
       if (drop) {
-        // Si es el input, lo dejamos que lo gestione pero abrimos modal si procede
         if (target.id === 'file') {
           e.preventDefault();
           e.stopPropagation();
           openAuthNow();
           return;
         }
-        // Cualquier click en el recuadro sin sesión
         e.preventDefault();
         e.stopPropagation();
         openAuthNow();
@@ -264,6 +269,13 @@
       if (e.dataTransfer && e.dataTransfer.types) {
         const types = Array.from(e.dataTransfer.types);
         if (types.includes('Files') || types.includes('application/x-moz-file')) {
+          const drop = document.getElementById('drop');
+          if (drop && drop.contains(e.target)) {
+            e.preventDefault();
+            e.stopPropagation();
+            openAuthNow();
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
           openAuthNow();
@@ -281,10 +293,7 @@
             e.preventDefault();
             e.stopPropagation();
             openAuthNow();
-          } else if (!drop || !drop.contains(e.target)) {
-            e.preventDefault();
-            e.stopPropagation();
-            openAuthNow();
+            return;
           }
         }
       }
